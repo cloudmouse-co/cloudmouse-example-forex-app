@@ -25,6 +25,9 @@
 #include "../hardware/SimpleBuzzer.h"
 #include "../network/WebServerManager.h"
 
+namespace ForexExample {
+  class ForexApp;
+}
 
 namespace CloudMouse
 {
@@ -86,6 +89,9 @@ namespace CloudMouse
     void setWebServer(WebServerManager *webServer) { this->webServer = webServer; }
     void setLEDManager(LEDManager *ledManager) { this->ledManager = ledManager; }
 
+    // Forex app
+    void setForexApp(ForexExample::ForexApp *forexApp) { this->forexApp = forexApp; }
+
     // State management
     SystemState getState() const { return currentState; }
     void setState(SystemState state);
@@ -110,7 +116,10 @@ namespace CloudMouse
     WiFiManager *wifi = nullptr;
     WebServerManager *webServer = nullptr;
     LEDManager *ledManager = nullptr;
-
+    
+    // Forex app
+    ForexExample::ForexApp *forexApp = nullptr;
+    
     // System services
     PreferencesManager prefs;
     TaskHandle_t uiTaskHandle = nullptr;
