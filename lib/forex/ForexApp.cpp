@@ -123,14 +123,6 @@ namespace ForexExample
             }
         }
 
-        // Step 3: Process ALL SDK events (SINGLE CONSUMPTION POINT)
-        CloudMouse::Event sdkEvent;
-        while (CloudMouse::EventBus::instance().receiveFromUI(sdkEvent, 0))
-        {
-            // Process SDK event for business logic
-            processSDKEvent(sdkEvent);
-        }
-
         // Step 4: Update config server (handle web requests)
         if (configServer)
         {

@@ -366,6 +366,8 @@ namespace ForexExample {
          * @param count Number of points
          */
         void updateChart(lv_obj_t* chart, const float prices[], int count);
+
+        static void group_focus_cb(lv_group_t * group);
     };
 
 } // namespace ForexExample

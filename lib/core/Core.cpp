@@ -333,12 +333,13 @@ namespace CloudMouse
       ledManager->activate();
     }
 
+    if (forexApp) {
+        forexApp->processSDKEvent(event);
+    }
+
     // Forward to UI system
     EventBus::instance().sendToUI(event);
 
-    // if (forexApp) {
-    //     forexApp->processSDKEvent(event);
-    // }
   }
 
   void Core::handleEncoderClick(const Event &event)
@@ -353,6 +354,10 @@ namespace CloudMouse
 
     // Audio feedback
     SimpleBuzzer::buzz();
+
+    if (forexApp) {
+        forexApp->processSDKEvent(event);
+    }
 
     // Forward to UI system
     EventBus::instance().sendToUI(event);
@@ -370,7 +375,11 @@ namespace CloudMouse
 
     // Audio feedback: error pattern
     SimpleBuzzer::error();
-
+    
+    if (forexApp) {
+        forexApp->processSDKEvent(event);
+    }
+    
     // Forward to UI system
     EventBus::instance().sendToUI(event);
   }

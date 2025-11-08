@@ -2,12 +2,12 @@
  * ForexDisplayManager - Implementation
  *
  * Beautiful, smooth, responsive UI for forex data!
- * 
+ *
  * IMPORTANT: This class runs on Core 1 and ONLY handles:
  * - Consuming custom Forex events from receiveFromMain()
  * - Rendering LVGL UI components
  * - Local UI state management
- * 
+ *
  * It does NOT consume SDK events (encoder, WiFi, etc) - that's ForexApp's job!
  */
 
@@ -46,6 +46,8 @@ namespace ForexExample
             encoder_group = lv_group_create();
             lv_group_set_default(encoder_group);
         }
+
+        lv_group_set_focus_cb(encoder_group, group_focus_cb);
 
         // Create all screens
         createLoadingScreen();
@@ -240,6 +242,9 @@ namespace ForexExample
         lv_obj_set_flex_align(list_symbols, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START);
         lv_obj_set_scrollbar_mode(list_symbols, LV_SCROLLBAR_MODE_AUTO);
 
+        // lv_obj_set_scroll_snap_y(list_symbols, LV_SCROLL_SNAP_CENTER);
+        // lv_obj_update_snap(list_symbols, LV_ANIM_ON);
+
         // Create list item templates (will be populated later)
         for (int i = 0; i < MAX_SYMBOLS; i++)
         {
@@ -279,11 +284,22 @@ namespace ForexExample
             // Create list item
             lv_obj_t *item = lv_obj_create(list_symbols);
             lv_obj_set_size(item, LV_PCT(100), 60);
+
+            // Normal state styling
             lv_obj_set_style_bg_color(item, lv_color_hex(0x2a2a2a), 0);
             lv_obj_set_style_border_width(item, 1, 0);
             lv_obj_set_style_border_color(item, lv_color_hex(0x3a3a3a), 0);
             lv_obj_set_style_radius(item, 8, 0);
             lv_obj_set_style_pad_all(item, 10, 0);
+
+            // ✅ FOCUSED state styling (when selected with encoder)
+            lv_obj_set_style_bg_color(item, lv_color_hex(0x667eea), LV_STATE_FOCUSED);
+            lv_obj_set_style_border_color(item, lv_color_hex(0x8899ff), LV_STATE_FOCUSED);
+            lv_obj_set_style_border_width(item, 2, LV_STATE_FOCUSED);
+
+            // ✅ Make item clickable and focusable
+            lv_obj_add_flag(item, LV_OBJ_FLAG_CLICKABLE);
+            lv_obj_clear_flag(item, LV_OBJ_FLAG_SCROLLABLE);
 
             // Symbol name (left)
             lv_obj_t *sym_label = lv_label_create(item);
@@ -325,6 +341,14 @@ namespace ForexExample
 
             // Add to encoder group for selection
             lv_group_add_obj(encoder_group, item);
+
+            // ✅ Se è l'ultimo item, digli a LVGL di wrappare
+            if (i == symbolCount - 1)
+            {
+                lv_group_set_wrap(encoder_group, false); // NON wrappa = si ferma all'ultimo
+                // oppure
+                // lv_group_set_wrap(encoder_group, true); // Wrappa = torna al primo
+            }
         }
 
         Serial.printf("✅ SYMBOL_LIST screen created with %d symbols\n", symbolCount);
@@ -524,6 +548,17 @@ namespace ForexExample
         // LVGL encoder group handles scrolling automatically
         // We just need to make sure our list items are in the group
         Serial.printf("🔄 UI handling encoder rotation: %d\n", delta);
+
+        // // ✅ Scroll to focused item automatically!
+        // if (currentScreen == ForexScreen::SYMBOL_LIST)
+        // {
+        //     lv_obj_t *focused = lv_group_get_focused(encoder_group);
+        //     if (focused != nullptr)
+        //     {
+        //         // Scroll the container to show the focused item
+        //         lv_obj_scroll_to_view(focused, LV_ANIM_ON);
+        //     }
+        // }
     }
 
     void ForexDisplayManager::handleEncoderClick()
@@ -624,6 +659,16 @@ namespace ForexExample
     {
         // Chart update implementation
         // Skip for now
+    }
+
+    void ForexDisplayManager::group_focus_cb(lv_group_t * group)
+    {
+        lv_obj_t * focused = lv_group_get_focused(group);
+        if (focused != nullptr)
+        {
+            // Scroll to view the focused object (outside rendering context)
+            lv_obj_scroll_to_view(focused, LV_ANIM_ON);
+        }
     }
 
 } // namespace ForexExample

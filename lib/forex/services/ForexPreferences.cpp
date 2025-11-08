@@ -227,7 +227,7 @@ namespace ForexExample {
 
     String ForexPreferences::buildCacheKey(const String& symbol, const char* suffix) const {
         // Build key like "cache_AAPL_price"
-        return "cache_" + symbol + "_" + suffix;
+        return "c_" + symbol + "_" + suffix;
     }
 
     void ForexPreferences::invalidateCache() {
