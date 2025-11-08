@@ -112,12 +112,6 @@ namespace CloudMouse
       handleWiFiConnection();
     }
 
-    if (forexApp && currentState == SystemState::RUNNING)
-    {
-      forexApp->init();
-      forexApp->update();
-    }
-
     // Web server updates when in AP mode
     if (wifi && wifi->getState() == WiFiManager::WiFiState::AP_MODE && webServer)
     {
@@ -133,6 +127,12 @@ namespace CloudMouse
     // Process user commands and system events
     processSerialCommands();
     processEvents();
+
+    if (forexApp && currentState == SystemState::RUNNING)
+    {
+      forexApp->init();
+      forexApp->update();
+    }
 
     coordinationCycles++;
 
@@ -335,6 +335,10 @@ namespace CloudMouse
 
     // Forward to UI system
     EventBus::instance().sendToUI(event);
+
+    // if (forexApp) {
+    //     forexApp->processSDKEvent(event);
+    // }
   }
 
   void Core::handleEncoderClick(const Event &event)
