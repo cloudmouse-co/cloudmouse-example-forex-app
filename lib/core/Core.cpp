@@ -6,6 +6,7 @@
  */
 
 #include "./Core.h"
+#include "../forex/ForexApp.h"
 
 namespace CloudMouse
 {
@@ -109,6 +110,12 @@ namespace CloudMouse
     {
       wifi->update();
       handleWiFiConnection();
+    }
+
+    if (forexApp && currentState == SystemState::RUNNING)
+    {
+      forexApp->init();
+      forexApp->update();
     }
 
     // Web server updates when in AP mode

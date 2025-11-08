@@ -379,8 +379,8 @@ namespace ForexExample {
         sdkEvent.value = eventData.value;
         strncpy(sdkEvent.stringData, eventData.stringData, sizeof(sdkEvent.stringData) - 1);
         
-        // Send to UI
-        CloudMouse::EventBus::instance().sendToUI(sdkEvent);
+        // Send to main Core (to loop to ForexApp)
+        CloudMouse::EventBus::instance().sendToMain(sdkEvent);
     }
 
 } // namespace ForexExample

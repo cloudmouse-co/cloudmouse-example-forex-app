@@ -45,37 +45,31 @@ namespace ForexExample {
 
 namespace ForexExample {
 
-    /**
-     * Custom Event Types for Forex Application
-     * 
-     * These events extend CloudMouse SDK events without modifying the core.
-     * They follow the same pattern as SDK events for consistency.
-     * 
-     * Event Flow:
-     * - ForexDataService -> FOREX_DATA_UPDATED -> ForexDisplayManager
-     * - ForexPreferences -> FOREX_CONFIG_CHANGED -> ForexApp
-     * - ForexApp -> FOREX_MARKET_STATUS -> ForexDisplayManager
-     */
-    enum class ForexEventType {
+    enum class ForexEventType
+    {
         // Configuration events
-        FOREX_CONFIG_NEEDED,        // No API key or symbols configured
-        FOREX_CONFIG_VALID,         // Configuration is complete and valid
-        FOREX_CONFIG_CHANGED,       // User updated configuration
-        
-        // Data events
-        FOREX_DATA_UPDATED,         // New market data received
-        FOREX_DATA_CACHED,          // Using cached data (within 5min window)
-        FOREX_API_ERROR,            // API call failed
-        FOREX_API_RATE_LIMIT,       // API rate limit hit
-        
+        FOREX_CONFIG_NEEDED = 0,
+        FOREX_CONFIG_VALID = 1,
+
         // Market status events
-        FOREX_MARKET_OPEN,          // NASDAQ is open, polling active
-        FOREX_MARKET_CLOSED,        // NASDAQ closed, polling paused
-        
+        FOREX_MARKET_OPEN = 10,
+        FOREX_MARKET_CLOSED = 11,
+
+        // Data events
+        FOREX_DATA_UPDATED = 20,
+        FOREX_DATA_CACHED = 21,
+        FOREX_API_ERROR = 22,
+        FOREX_API_RATE_LIMIT = 23,
+
         // UI navigation events
-        FOREX_SHOW_LIST,            // Show symbol list view
-        FOREX_SHOW_DETAIL,          // Show detail view for specific symbol
-        FOREX_SHOW_CONFIG           // Show config needed screen
+        FOREX_SHOW_LIST = 30,
+        FOREX_SHOW_DETAIL = 31,
+        FOREX_SHOW_CONFIG = 32,
+
+        // Input events (forwarded from SDK)
+        FOREX_ENCODER_ROTATION = 40,
+        FOREX_ENCODER_CLICK = 41,
+        FOREX_ENCODER_LONG_PRESS = 42
     };
 
     /**
@@ -253,7 +247,13 @@ namespace ForexExample {
         void handleEncoderClick();
         
         // Helper methods
-        void emitForexEvent(const ForexEventData& eventData);
+        // void emitForexEvent(const ForexEventData& eventData);
+        
+        /**
+         * Notify display manager directly (bypasses EventBus)
+         * Avoids blocking SDK events
+         */
+        void notifyDisplay(const ForexEventData& eventData);
         void checkAndUpdateMarketStatus();
         void validateConfiguration();
     };

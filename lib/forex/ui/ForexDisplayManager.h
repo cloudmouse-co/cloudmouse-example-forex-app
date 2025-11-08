@@ -158,6 +158,10 @@ namespace ForexExample {
          * @param screen Target screen
          */
         void showScreen(ForexScreen screen);
+
+        void onForexEvent(const ForexEventData& event) {
+            processForexEvent(event);
+        }
         
     private:
         ForexPreferences& preferences;

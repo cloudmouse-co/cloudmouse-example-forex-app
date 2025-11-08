@@ -43,7 +43,8 @@ namespace ForexExample
 
     bool ForexApp::init()
     {
-        if (inited) {
+        if (inited)
+        {
             return true;
         }
 
@@ -60,11 +61,6 @@ namespace ForexExample
         Serial.println("✅ Preferences loaded");
 
         displayManager = new ForexDisplayManager(*preferences);
-        if (!displayManager->init()) {
-            Serial.println("❌ Failed to initialize display");
-            changeState(ForexAppState::ERROR);
-            return false;
-        }
 
         // Step 2: Initialize config server (always available, even without WiFi)
         configServer = new ForexConfigServer(*preferences);
@@ -104,77 +100,78 @@ namespace ForexExample
 
     void ForexApp::update()
     {
+        // Step 1: Initialize display manager when LVGL is ready
+        static bool forexDisplayInited = false;
+        if (!forexDisplayInited && displayManager)
+        {
+            if (lv_display_get_default() != nullptr)
+            {
+                Serial.println("✅ LVGL ready, initializing ForexDisplayManager...");
+                displayManager->init();
+                forexDisplayInited = true;
+            }
+        }
+
+        // Step 2: Start config server when WiFi is ready
         static bool configServerStarted = false;
         if (!configServerStarted && configServer)
         {
-            // Controlla se WiFi è in una modalità valida
             if (WiFi.getMode() == WIFI_MODE_STA || WiFi.getMode() == WIFI_MODE_AP || WiFi.getMode() == WIFI_MODE_APSTA)
             {
                 Serial.println("🌐 WiFi ready, starting config server...");
-                
                 configServerStarted = true;
             }
         }
 
-        if (displayManager)
-        {
-            displayManager->update();
-        }
-
-        // Step 1: Check for SDK events
+        // Step 3: Process ALL SDK events (SINGLE CONSUMPTION POINT)
         CloudMouse::Event sdkEvent;
         while (CloudMouse::EventBus::instance().receiveFromUI(sdkEvent, 0))
         {
+            // Process SDK event for business logic
             processSDKEvent(sdkEvent);
         }
 
-        // Step 2: Update config server (handle web requests)
+        // Step 4: Update config server (handle web requests)
         if (configServer)
         {
             configServer->update();
         }
 
-        // Step 3: Check market status periodically
+        // Step 5: Check market status periodically
         if (millis() - lastMarketCheck > MARKET_CHECK_INTERVAL_MS)
         {
             checkAndUpdateMarketStatus();
             lastMarketCheck = millis();
         }
 
-        // Step 4: Poll data if in active state and interval elapsed
+        // Step 6: Poll forex data if in active state and interval elapsed
         if (currentState == ForexAppState::POLLING_ACTIVE &&
             dataService &&
             millis() - lastPollTime > POLL_INTERVAL_MS)
         {
-
             Serial.println("🔄 Polling forex data...");
 
             if (dataService->poll())
             {
                 lastPollTime = millis();
-
-                // Emit event with updated data
-                // (ForexDataService will emit detailed events for each symbol)
                 Serial.println("✅ Data poll successful");
             }
             else
             {
                 Serial.println("⚠️ Data poll failed");
-
                 ForexEventData errorEvt = ForexEventData::apiError("Poll failed", 0);
-                emitForexEvent(errorEvt);
+                notifyDisplay(errorEvt);
             }
         }
 
-        // Step 5: If using cached data, check if it's still fresh
+        // Step 7: If using cached data, check if it's still fresh
         if (currentState == ForexAppState::POLLING_PAUSED && dataService)
         {
             if (dataService->hasFreshCache())
             {
-                // Emit cached data event
                 ForexEventData evt;
                 evt.type = ForexEventType::FOREX_DATA_CACHED;
-                emitForexEvent(evt);
+                notifyDisplay(evt);
             }
         }
     }
@@ -209,7 +206,7 @@ namespace ForexExample
             Serial.println("🔧 Long press detected - showing config");
             ForexEventData evt;
             evt.type = ForexEventType::FOREX_SHOW_CONFIG;
-            emitForexEvent(evt);
+            notifyDisplay(evt);
             break;
         }
 
@@ -251,23 +248,21 @@ namespace ForexExample
 
     void ForexApp::handleEncoderRotation(int delta)
     {
-        // Forward to UI layer through custom event
+        // Create custom Forex event and send to UI
         ForexEventData evt;
-        evt.type = ForexEventType::FOREX_SHOW_LIST; // Keep on list for now
-        evt.value = delta;                          // Delta for scrolling
-        emitForexEvent(evt);
+        evt.type = ForexEventType::FOREX_ENCODER_ROTATION;
+        evt.value = delta;
+        notifyDisplay(evt);
     }
 
     void ForexApp::handleEncoderClick()
     {
-        // Toggle between list and detail view
-        // (In a real app, you'd track current view state)
         Serial.println("🖱️ Encoder click - toggling view");
 
+        // Create custom Forex event and send to UI
         ForexEventData evt;
-        evt.type = ForexEventType::FOREX_SHOW_DETAIL;
-        evt.value = 0; // Index of selected symbol
-        emitForexEvent(evt);
+        evt.type = ForexEventType::FOREX_ENCODER_CLICK;
+        notifyDisplay(evt);
     }
 
     // ============================================================================
@@ -294,7 +289,7 @@ namespace ForexExample
         case ForexAppState::CONFIG_NEEDED:
         {
             ForexEventData evt = ForexEventData::configNeeded();
-            emitForexEvent(evt);
+            notifyDisplay(evt);
         }
         break;
 
@@ -303,7 +298,7 @@ namespace ForexExample
             {
                 ForexEventData evt;
                 evt.type = ForexEventType::FOREX_MARKET_OPEN;
-                emitForexEvent(evt);
+                notifyDisplay(evt);
             }
             break;
 
@@ -312,7 +307,7 @@ namespace ForexExample
             {
                 ForexEventData evt;
                 evt.type = ForexEventType::FOREX_MARKET_CLOSED;
-                emitForexEvent(evt);
+                notifyDisplay(evt);
             }
             break;
 
@@ -320,7 +315,7 @@ namespace ForexExample
             Serial.println("❌ App in error state");
             {
                 ForexEventData evt = ForexEventData::apiError("App error", -1);
-                emitForexEvent(evt);
+                notifyDisplay(evt);
             }
             break;
 
@@ -406,26 +401,11 @@ namespace ForexExample
         }
     }
 
-    // ============================================================================
-    // EVENT EMISSION
-    // ============================================================================
-
-    void ForexApp::emitForexEvent(const ForexEventData &eventData)
+    void ForexApp::notifyDisplay(const ForexEventData &eventData)
     {
-        // Convert ForexEventData to SDK Event for transmission
-        CloudMouse::Event sdkEvent;
-
-        // Use a custom event type range (SDK uses 0-99, we use 100+)
-        sdkEvent.type = static_cast<CloudMouse::EventType>(100 + static_cast<int>(eventData.type));
-        sdkEvent.value = eventData.value;
-
-        // Copy string data
-        strncpy(sdkEvent.stringData, eventData.stringData, sizeof(sdkEvent.stringData) - 1);
-
-        // Send to UI task via EventBus
-        if (!CloudMouse::EventBus::instance().sendToUI(sdkEvent))
+        if (displayManager)
         {
-            Serial.println("⚠️ Failed to send forex event to UI");
+            displayManager->onForexEvent(eventData);
         }
     }
 
