@@ -60,8 +60,6 @@ namespace ForexExample
         }
         Serial.println("✅ Preferences loaded");
 
-        displayManager = new ForexDisplayManager(*preferences);
-
         // Step 2: Initialize config server (always available, even without WiFi)
         configServer = new ForexConfigServer(*preferences);
         if (!configServer->init())
@@ -70,11 +68,6 @@ namespace ForexExample
             changeState(ForexAppState::ERROR);
             return false;
         }
-
-        // ✅ Register callback for config changes!
-        configServer->setConfigChangedCallback([this]()
-                                               { this->onConfigurationSaved(); });
-
         Serial.println("✅ Config server initialized");
 
         // Step 3: Check if we have valid configuration
@@ -91,11 +84,27 @@ namespace ForexExample
             else
             {
                 Serial.println("✅ Data service initialized");
-            }
 
-            // ✅ Start checking market and polling!
-            checkAndUpdateMarketStatus();
+                // 🚀 NEW: If WiFi is already connected, do initial poll NOW
+                // This populates cache BEFORE DisplayManager tries to read it
+                if (WiFi.status() == WL_CONNECTED)
+                {
+                    Serial.println("🔄 WiFi already connected - forcing initial poll...");
+                    if (dataService->poll())
+                    {
+                        Serial.println("✅ Initial cache populated");
+                        lastPollTime = millis();
+                    }
+                    else
+                    {
+                        Serial.println("⚠️ Initial poll failed");
+                    }
+                }
+            }
         }
+
+        // Step 5: NOW create DisplayManager (cache is populated if WiFi was ready)
+        displayManager = new ForexDisplayManager(*preferences);
 
         Serial.println("✅ ForexApp initialized successfully!");
         inited = true;
@@ -131,60 +140,78 @@ namespace ForexExample
             }
         }
 
-        // Step 3: Update config server (handle web requests)
+        // Step 3: Process ALL SDK events (SINGLE CONSUMPTION POINT)
+        CloudMouse::Event sdkEvent;
+        while (CloudMouse::EventBus::instance().receiveFromUI(sdkEvent, 0))
+        {
+            // Process SDK event for business logic
+            processSDKEvent(sdkEvent);
+        }
+
+        // Step 4: Update config server (handle web requests)
         if (configServer)
         {
             configServer->update();
         }
 
-        // Step 4: Check market status periodically
+        // Step 5: Check market status periodically
         if (millis() - lastMarketCheck > MARKET_CHECK_INTERVAL_MS)
         {
             checkAndUpdateMarketStatus();
             lastMarketCheck = millis();
         }
 
-        // Step 5: Poll forex data - SEMPRE se non abbiamo dati, anche con market closed!
-        if (currentState == ForexAppState::POLLING_ACTIVE &&
-            dataService &&
-            millis() - lastPollTime > POLL_INTERVAL_MS)
+        // Step 6: Poll forex data intelligently based on state and cache freshness
+        // - If market is OPEN (POLLING_ACTIVE): always poll at interval
+        // - If market is CLOSED (POLLING_PAUSED): only poll if cache is stale/missing
+        if (dataService && millis() - lastPollTime > POLL_INTERVAL_MS)
         {
-            Serial.println("🔄 Polling forex data (market open)...");
+            bool shouldPoll = false;
 
-            if (dataService->poll())
+            if (currentState == ForexAppState::POLLING_ACTIVE)
             {
-                lastPollTime = millis();
-                Serial.println("✅ Data poll successful");
+                // Market is open - always poll for fresh data
+                shouldPoll = true;
             }
-            else
+            else if (currentState == ForexAppState::POLLING_PAUSED)
             {
-                Serial.println("⚠️ Data poll failed");
-                ForexEventData errorEvt = ForexEventData::apiError("Poll failed", 0);
-                notifyDisplay(errorEvt);
+                // Market is closed - only poll if we don't have fresh cached data
+                // This ensures we refresh stale data even when market is closed
+                if (!dataService->hasFreshCache())
+                {
+                    Serial.println("🔄 Cache stale during market close - refreshing...");
+                    shouldPoll = true;
+                }
             }
-        }
-        // ✅ Poll anche se market closed MA solo se cache vuota!
-        else if (currentState == ForexAppState::POLLING_PAUSED && dataService)
-        {
-            // Check if we have ANY cached data
-            bool hasCachedData = dataService->hasFreshCache();
 
-            if (!hasCachedData && millis() - lastPollTime > POLL_INTERVAL_MS)
+            if (shouldPoll)
             {
-                Serial.println("🔄 No cached data - polling even though market is closed...");
+                Serial.println("🔄 Polling forex data...");
 
                 if (dataService->poll())
                 {
                     lastPollTime = millis();
-                    Serial.println("✅ Initial data poll successful");
+                    Serial.println("✅ Data poll successful");
                 }
                 else
                 {
-                    Serial.println("⚠️ Initial data poll failed");
+                    Serial.println("⚠️ Data poll failed");
+                    ForexEventData errorEvt = ForexEventData::apiError("Poll failed", 0);
+                    notifyDisplay(errorEvt);
                 }
             }
         }
 
+        // Step 7: Notify UI about cached data availability when market is paused
+        if (currentState == ForexAppState::POLLING_PAUSED && dataService)
+        {
+            if (dataService->hasFreshCache())
+            {
+                ForexEventData evt;
+                evt.type = ForexEventType::FOREX_DATA_CACHED;
+                notifyDisplay(evt);
+            }
+        }
     }
 
     // ============================================================================
@@ -240,9 +267,22 @@ namespace ForexExample
         {
             dataService = new ForexDataService(*preferences);
             dataService->init();
+
+            // 🚀 FORCE INITIAL POLL to populate cache
+            // This ensures we have data even if market is closed
+            Serial.println("🔄 Forcing initial data poll...");
+            if (dataService->poll())
+            {
+                Serial.println("✅ Initial poll successful - cache populated");
+                lastPollTime = millis();
+            }
+            else
+            {
+                Serial.println("⚠️ Initial poll failed - will retry later");
+            }
         }
 
-        // Check market status and start polling if open
+        // Check market status and start/pause polling based on hours
         checkAndUpdateMarketStatus();
     }
 

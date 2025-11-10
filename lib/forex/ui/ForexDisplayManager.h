@@ -77,10 +77,15 @@ namespace ForexExample {
     struct SymbolListItem {
         String symbol;
         float price;
+        float open;
+        float high;
+        float low;
+        float previousClose;
         float changePercent;
         bool dataValid;
         
-        SymbolListItem() : price(0), changePercent(0), dataValid(false) {}
+        SymbolListItem() : price(0), open(0), high(0), low(0), 
+                        previousClose(0), changePercent(0), dataValid(false) {}
     };
 
     /**

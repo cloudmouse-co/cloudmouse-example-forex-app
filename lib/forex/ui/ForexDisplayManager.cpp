@@ -39,6 +39,8 @@ namespace ForexExample
     {
         Serial.println("🎨 Initializing ForexDisplayManager...");
 
+        delay(500);
+
         encoder_group = lv_group_get_default();
         if (!encoder_group)
         {
@@ -104,40 +106,39 @@ namespace ForexExample
             break;
 
         case ForexEventType::FOREX_CONFIG_VALID:
-            Serial.println("✅ Config valid received - recreating symbol list!");
-
-            // ✅ Ricrea la screen della lista con i nuovi simboli!
-            // Prima, rimuovi gli items vecchi dal gruppo
-            for (int i = 0; i < symbolCount; i++)
-            {
-                if (list_items[i] != nullptr)
-                {
-                    lv_group_remove_obj(list_items[i]);
-                }
-            }
-
-            // Poi ricrea la screen
-            if (screen_symbol_list != nullptr)
-            {
-                lv_obj_del(screen_symbol_list);
-                screen_symbol_list = nullptr;
-            }
-
-            createSymbolListScreen();
             showScreen(ForexScreen::SYMBOL_LIST);
             break;
 
         case ForexEventType::FOREX_DATA_UPDATED:
         {
+            // ✅ Show loading screen while fetching data (first symbol only)
+            static bool firstDataUpdate = true;
+            if (firstDataUpdate && currentScreen != ForexScreen::SYMBOL_LIST)
+            {
+                showScreen(ForexScreen::LOADING);
+                firstDataUpdate = false;
+            }
+
             // Find symbol in our cache and update it
             String symbol = event.stringData;
             for (int i = 0; i < symbolCount; i++)
             {
                 if (symbolData[i].symbol == symbol)
                 {
+                    // ✅ Update price and change from event
                     symbolData[i].price = event.price;
                     symbolData[i].changePercent = event.change_percent;
                     symbolData[i].dataValid = true;
+
+                    // ✅ Load OHLC from cache (the event doesn't carry OHLC)
+                    CachedSymbolData cached = preferences.getCachedData(symbol);
+                    if (cached.isValid())
+                    {
+                        symbolData[i].open = cached.open;
+                        symbolData[i].high = cached.high;
+                        symbolData[i].low = cached.low;
+                        symbolData[i].previousClose = cached.previousClose;
+                    }
 
                     updateListItem(i, symbolData[i]);
 
@@ -147,6 +148,25 @@ namespace ForexExample
                     {
                         updateSymbolDetail(symbolData[i]);
                     }
+
+                    // ✅ After all symbols updated, switch to list view
+                    // Check if all symbols have data now
+                    bool allDataValid = true;
+                    for (int j = 0; j < symbolCount; j++)
+                    {
+                        if (!symbolData[j].dataValid)
+                        {
+                            allDataValid = false;
+                            break;
+                        }
+                    }
+
+                    if (allDataValid && currentScreen == ForexScreen::LOADING)
+                    {
+                        Serial.println("✅ All data loaded - showing symbol list");
+                        showScreen(ForexScreen::SYMBOL_LIST);
+                    }
+
                     break;
                 }
             }
@@ -163,7 +183,11 @@ namespace ForexExample
 
         case ForexEventType::FOREX_API_ERROR:
             Serial.printf("⚠️ API Error: %s\n", event.stringData);
-            // Could show error toast/notification
+            // If we're on loading screen and error occurs, go back to list
+            if (currentScreen == ForexScreen::LOADING)
+            {
+                showScreen(ForexScreen::SYMBOL_LIST);
+            }
             break;
 
         case ForexEventType::FOREX_ENCODER_ROTATION:
@@ -297,6 +321,10 @@ namespace ForexExample
             if (cached.isValid())
             {
                 symbolData[i].price = cached.price;
+                symbolData[i].open = cached.open;                   
+                symbolData[i].high = cached.high;                   
+                symbolData[i].low = cached.low;                     
+                symbolData[i].previousClose = cached.previousClose; 
                 symbolData[i].changePercent = cached.changePercent;
                 symbolData[i].dataValid = true;
             }
@@ -538,8 +566,21 @@ namespace ForexExample
         lv_label_set_text(label_detail_change, formatChangePercent(symbol.changePercent).c_str());
         lv_obj_set_style_text_color(label_detail_change, getChangeColor(symbol.changePercent), 0);
 
-        // OHLC data would be updated here if we had it
-        // For now, just show placeholder or cached data
+        // ✅ Update OHLC data
+        char buf[32];
+
+        snprintf(buf, sizeof(buf), "Open: $%.2f", symbol.open);
+        lv_label_set_text(label_detail_open, buf);
+
+        snprintf(buf, sizeof(buf), "High: $%.2f", symbol.high);
+        lv_label_set_text(label_detail_high, buf);
+
+        snprintf(buf, sizeof(buf), "Low: $%.2f", symbol.low);
+        lv_label_set_text(label_detail_low, buf);
+
+        Serial.printf("📊 Detail updated: %s = $%.2f (%.2f%%) [O:%.2f H:%.2f L:%.2f]\n",
+                      symbol.symbol.c_str(), symbol.price, symbol.changePercent,
+                      symbol.open, symbol.high, symbol.low);
     }
 
     void ForexDisplayManager::updateMarketStatus(bool isOpen)
