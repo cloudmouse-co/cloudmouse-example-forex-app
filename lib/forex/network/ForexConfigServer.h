@@ -120,6 +120,10 @@ namespace ForexExample {
          */
         String getServerUrl() const;
         
+        void setConfigChangedCallback(std::function<void()> callback) {
+            onConfigChanged = callback;
+        }
+
     private:
         ForexPreferences& preferences;
         WebServer* webServer;  // Pointer to SDK's WebServer instance
@@ -245,6 +249,14 @@ namespace ForexExample {
          * @return Decoded string
          */
         String urlDecode(const String& encoded);
+
+        std::function<void()> onConfigChanged;
+    
+        void configChangedCallback() {
+            if (onConfigChanged) {
+                onConfigChanged();
+            }
+        }
     };
 
 } // namespace ForexExample

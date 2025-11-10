@@ -256,6 +256,8 @@ namespace ForexExample {
         void notifyDisplay(const ForexEventData& eventData);
         void checkAndUpdateMarketStatus();
         void validateConfiguration();
+
+        void onConfigurationSaved();
     };
 
 } // namespace ForexExample

@@ -70,6 +70,11 @@ namespace ForexExample
             changeState(ForexAppState::ERROR);
             return false;
         }
+
+        // ✅ Register callback for config changes!
+        configServer->setConfigChangedCallback([this]()
+                                               { this->onConfigurationSaved(); });
+
         Serial.println("✅ Config server initialized");
 
         // Step 3: Check if we have valid configuration
@@ -87,6 +92,9 @@ namespace ForexExample
             {
                 Serial.println("✅ Data service initialized");
             }
+
+            // ✅ Start checking market and polling!
+            checkAndUpdateMarketStatus();
         }
 
         Serial.println("✅ ForexApp initialized successfully!");
@@ -123,25 +131,25 @@ namespace ForexExample
             }
         }
 
-        // Step 4: Update config server (handle web requests)
+        // Step 3: Update config server (handle web requests)
         if (configServer)
         {
             configServer->update();
         }
 
-        // Step 5: Check market status periodically
+        // Step 4: Check market status periodically
         if (millis() - lastMarketCheck > MARKET_CHECK_INTERVAL_MS)
         {
             checkAndUpdateMarketStatus();
             lastMarketCheck = millis();
         }
 
-        // Step 6: Poll forex data if in active state and interval elapsed
+        // Step 5: Poll forex data - SEMPRE se non abbiamo dati, anche con market closed!
         if (currentState == ForexAppState::POLLING_ACTIVE &&
             dataService &&
             millis() - lastPollTime > POLL_INTERVAL_MS)
         {
-            Serial.println("🔄 Polling forex data...");
+            Serial.println("🔄 Polling forex data (market open)...");
 
             if (dataService->poll())
             {
@@ -155,17 +163,28 @@ namespace ForexExample
                 notifyDisplay(errorEvt);
             }
         }
-
-        // Step 7: If using cached data, check if it's still fresh
-        if (currentState == ForexAppState::POLLING_PAUSED && dataService)
+        // ✅ Poll anche se market closed MA solo se cache vuota!
+        else if (currentState == ForexAppState::POLLING_PAUSED && dataService)
         {
-            if (dataService->hasFreshCache())
+            // Check if we have ANY cached data
+            bool hasCachedData = dataService->hasFreshCache();
+
+            if (!hasCachedData && millis() - lastPollTime > POLL_INTERVAL_MS)
             {
-                ForexEventData evt;
-                evt.type = ForexEventType::FOREX_DATA_CACHED;
-                notifyDisplay(evt);
+                Serial.println("🔄 No cached data - polling even though market is closed...");
+
+                if (dataService->poll())
+                {
+                    lastPollTime = millis();
+                    Serial.println("✅ Initial data poll successful");
+                }
+                else
+                {
+                    Serial.println("⚠️ Initial data poll failed");
+                }
             }
         }
+
     }
 
     // ============================================================================
@@ -398,6 +417,54 @@ namespace ForexExample
         if (displayManager)
         {
             displayManager->onForexEvent(eventData);
+        }
+    }
+
+    void ForexApp::onConfigurationSaved()
+    {
+        Serial.println("🎉 Configuration saved notification received!");
+
+        int currentSymbolCount = preferences->getSymbolCount();
+        bool hasApiKey = preferences->hasApiKey();
+
+        // Config was added for the first time!
+        if (currentState == ForexAppState::CONFIG_NEEDED && hasApiKey && currentSymbolCount > 0)
+        {
+            Serial.println("🎉 First configuration detected! Starting services...");
+
+            // Initialize data service
+            if (!dataService)
+            {
+                dataService = new ForexDataService(*preferences);
+                dataService->init();
+            }
+
+            // Change state
+            changeState(ForexAppState::READY);
+
+            // Check market and start polling
+            checkAndUpdateMarketStatus();
+
+            // Notify display to show symbol list
+            ForexEventData evt;
+            evt.type = ForexEventType::FOREX_CONFIG_VALID;
+            notifyDisplay(evt);
+
+            // Force immediate poll
+            lastPollTime = 0;
+        }
+        // Config was changed (symbols updated)
+        else if (currentState != ForexAppState::CONFIG_NEEDED)
+        {
+            Serial.println("🔄 Configuration updated! Reloading...");
+
+            // Notify display manager to recreate list
+            ForexEventData evt;
+            evt.type = ForexEventType::FOREX_CONFIG_VALID;
+            notifyDisplay(evt);
+
+            // Force data refresh
+            lastPollTime = 0;
         }
     }
 

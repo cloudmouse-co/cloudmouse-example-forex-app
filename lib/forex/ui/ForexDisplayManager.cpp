@@ -104,6 +104,26 @@ namespace ForexExample
             break;
 
         case ForexEventType::FOREX_CONFIG_VALID:
+            Serial.println("✅ Config valid received - recreating symbol list!");
+
+            // ✅ Ricrea la screen della lista con i nuovi simboli!
+            // Prima, rimuovi gli items vecchi dal gruppo
+            for (int i = 0; i < symbolCount; i++)
+            {
+                if (list_items[i] != nullptr)
+                {
+                    lv_group_remove_obj(list_items[i]);
+                }
+            }
+
+            // Poi ricrea la screen
+            if (screen_symbol_list != nullptr)
+            {
+                lv_obj_del(screen_symbol_list);
+                screen_symbol_list = nullptr;
+            }
+
+            createSymbolListScreen();
             showScreen(ForexScreen::SYMBOL_LIST);
             break;
 
@@ -661,9 +681,9 @@ namespace ForexExample
         // Skip for now
     }
 
-    void ForexDisplayManager::group_focus_cb(lv_group_t * group)
+    void ForexDisplayManager::group_focus_cb(lv_group_t *group)
     {
-        lv_obj_t * focused = lv_group_get_focused(group);
+        lv_obj_t *focused = lv_group_get_focused(group);
         if (focused != nullptr)
         {
             // Scroll to view the focused object (outside rendering context)

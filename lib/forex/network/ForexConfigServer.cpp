@@ -6,187 +6,224 @@
 #include "ForexConfigServer.h"
 #include <WiFi.h>
 
-namespace ForexExample {
+namespace ForexExample
+{
 
-    ForexConfigServer* ForexConfigServer::instance = nullptr;
+    ForexConfigServer *ForexConfigServer::instance = nullptr;
 
-    ForexConfigServer::ForexConfigServer(ForexPreferences& prefs)
-        : preferences(prefs)
-        , webServer(nullptr)
-        , serverRunning(false)
+    ForexConfigServer::ForexConfigServer(ForexPreferences &prefs)
+        : preferences(prefs), webServer(nullptr), serverRunning(false)
     {
         instance = this;
     }
 
-    ForexConfigServer::~ForexConfigServer() {
+    ForexConfigServer::~ForexConfigServer()
+    {
         instance = nullptr;
     }
 
-    bool ForexConfigServer::init() {
+    bool ForexConfigServer::init()
+    {
         Serial.println("Initializing ForexConfigServer...");
-        
+
         webServer = new WebServer(8080);
-        
-        if (!webServer) {
+
+        if (!webServer)
+        {
             Serial.println("Failed to create WebServer");
             return false;
         }
-        
+
         webServer->on("/forex", HTTP_GET, handleConfigPage);
         webServer->on("/forex/config", HTTP_POST, handleConfigSubmit);
         webServer->on("/forex/status", HTTP_GET, handleStatusRequest);
         webServer->on("/forex/test", HTTP_POST, handleTestApi);
         webServer->on("/forex/clear", HTTP_POST, handleClearConfig);
-        
-        webServer->on("/", HTTP_GET, []() {
+
+        webServer->on("/", HTTP_GET, []()
+                      {
             instance->webServer->sendHeader("Location", "/forex");
-            instance->webServer->send(302);
-        });
-        
+            instance->webServer->send(302); });
+
         webServer->begin();
         serverRunning = true;
-        
+
         Serial.println("ForexConfigServer started on port 8080");
         Serial.println("Access at: http://" + WiFi.localIP().toString() + ":8080/forex");
-        
-        if (MDNS.begin("cloudmouse-forex")) {
+
+        if (MDNS.begin("cloudmouse-forex"))
+        {
             MDNS.addService("http", "tcp", 8080);
             Serial.println("mDNS started: http://cloudmouse-forex.local:8080/forex");
         }
-        
+
         return true;
     }
 
-    void ForexConfigServer::update() {
-        if (webServer && serverRunning) {
+    void ForexConfigServer::update()
+    {
+        if (webServer && serverRunning)
+        {
             webServer->handleClient();
         }
     }
 
-    String ForexConfigServer::getServerUrl() const {
-        if (WiFi.status() == WL_CONNECTED) {
+    String ForexConfigServer::getServerUrl() const
+    {
+        if (WiFi.status() == WL_CONNECTED)
+        {
             return "http://" + WiFi.localIP().toString() + ":8080/forex";
-        } else {
+        }
+        else
+        {
             return "http://192.168.4.1:8080/forex";
         }
     }
 
-    void ForexConfigServer::handleConfigPage() {
-        if (!instance) return;
-        
+    void ForexConfigServer::handleConfigPage()
+    {
+        if (!instance)
+            return;
+
         Serial.println("Serving config page");
-        
+
         String html = instance->generateConfigPage();
         instance->webServer->send(200, "text/html", html);
     }
 
-    void ForexConfigServer::handleConfigSubmit() {
-        if (!instance) return;
-        
+    void ForexConfigServer::handleConfigSubmit()
+    {
+        if (!instance)
+            return;
+
         Serial.println("Handling config submission");
-        
+
         String apiKey = instance->webServer->arg("api_key");
         int symbolCount = instance->webServer->arg("symbol_count").toInt();
-        
-        if (!instance->isValidApiKey(apiKey)) {
+
+        if (!instance->isValidApiKey(apiKey))
+        {
             instance->sendJsonResponse(false, "Invalid API key format");
             return;
         }
-        
-        if (symbolCount < 1 || symbolCount > 10) {
+
+        if (symbolCount < 1 || symbolCount > 10)
+        {
             instance->sendJsonResponse(false, "Symbol count must be 1-10");
             return;
         }
-        
+
         String symbols[10];
-        for (int i = 0; i < symbolCount; i++) {
+        for (int i = 0; i < symbolCount; i++)
+        {
             String argName = "symbol_" + String(i);
             symbols[i] = instance->webServer->arg(argName);
             symbols[i].toUpperCase();
             symbols[i].trim();
-            
-            if (!instance->isValidSymbol(symbols[i])) {
+
+            if (!instance->isValidSymbol(symbols[i]))
+            {
                 instance->sendJsonResponse(false, "Invalid symbol: " + symbols[i]);
                 return;
             }
         }
-        
+
         instance->preferences.setApiKey(apiKey);
         instance->preferences.setSymbols(symbols, symbolCount);
-        
-        Serial.println("Configuration saved");
+
+        Serial.println("✅ Configuration saved successfully!");
         instance->sendJsonResponse(true, "Configuration saved successfully!");
+
+        // ✅ NOTIFY che la config è cambiata!
+        instance->configChangedCallback();
     }
 
-    void ForexConfigServer::handleStatusRequest() {
-        if (!instance) return;
-        
+    void ForexConfigServer::handleStatusRequest()
+    {
+        if (!instance)
+            return;
+
         String json = "{";
         json += "\"configured\":" + String(instance->preferences.hasApiKey() ? "true" : "false") + ",";
         json += "\"api_key_set\":" + String(instance->preferences.hasApiKey() ? "true" : "false") + ",";
         json += "\"symbol_count\":" + String(instance->preferences.getSymbolCount()) + ",";
         json += "\"symbols\":[";
-        
+
         String symbols[10];
         int count = instance->preferences.getSymbols(symbols);
-        for (int i = 0; i < count; i++) {
-            if (i > 0) json += ",";
+        for (int i = 0; i < count; i++)
+        {
+            if (i > 0)
+                json += ",";
             json += "\"" + symbols[i] + "\"";
         }
-        
+
         json += "]}";
-        
+
         instance->webServer->send(200, "application/json", json);
     }
 
-    void ForexConfigServer::handleTestApi() {
-        if (!instance) return;
-        
+    void ForexConfigServer::handleTestApi()
+    {
+        if (!instance)
+            return;
+
         Serial.println("Testing API key");
-        
+
         String apiKey = instance->webServer->arg("api_key");
-        
-        if (apiKey.isEmpty()) {
+
+        if (apiKey.isEmpty())
+        {
             apiKey = instance->preferences.getApiKey();
         }
-        
-        if (!instance->isValidApiKey(apiKey)) {
+
+        if (!instance->isValidApiKey(apiKey))
+        {
             instance->sendJsonResponse(false, "Invalid API key format");
             return;
         }
-        
+
         HTTPClient http;
         String url = "https://api.twelvedata.com/time_series?symbol=AAPL&interval=1day&outputsize=1&apikey=" + apiKey;
-        
+
         http.begin(url);
         http.setTimeout(5000);
-        
+
         int httpCode = http.GET();
         String response = http.getString();
         http.end();
-        
-        if (httpCode == 200) {
-            if (response.indexOf("\"status\":\"error\"") >= 0) {
+
+        if (httpCode == 200)
+        {
+            if (response.indexOf("\"status\":\"error\"") >= 0)
+            {
                 instance->sendJsonResponse(false, "API key invalid or rate limit exceeded");
-            } else {
+            }
+            else
+            {
                 instance->sendJsonResponse(true, "API key is valid!");
             }
-        } else {
+        }
+        else
+        {
             instance->sendJsonResponse(false, "Connection failed (HTTP " + String(httpCode) + ")");
         }
     }
 
-    void ForexConfigServer::handleClearConfig() {
-        if (!instance) return;
-        
+    void ForexConfigServer::handleClearConfig()
+    {
+        if (!instance)
+            return;
+
         Serial.println("Clearing configuration");
-        
+
         instance->preferences.clearAll();
-        
+
         instance->sendJsonResponse(true, "All configuration cleared");
     }
 
-    String ForexConfigServer::generateConfigPage() {
+    String ForexConfigServer::generateConfigPage()
+    {
         String html = "<!DOCTYPE html><html><head>";
         html += "<meta charset=\"UTF-8\">";
         html += "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">";
@@ -196,7 +233,7 @@ namespace ForexExample {
         html += "</style></head><body>";
         html += "<div class=\"container\">";
         html += "<h1>CloudMouse Forex Configuration</h1>";
-        
+
         html += "<div class=\"card\">";
         html += "<h2>TwelveData API Key</h2>";
         html += "<p class=\"help\">Get your free API key at <a href=\"https://twelvedata.com\" target=\"_blank\">twelvedata.com</a></p>";
@@ -205,50 +242,53 @@ namespace ForexExample {
         html += "\">";
         html += "<button onclick=\"testApiKey()\" class=\"btn-secondary\">Test API Key</button>";
         html += "</div>";
-        
+
         html += "<div class=\"card\">";
         html += "<h2>Stock Symbols</h2>";
         html += "<p class=\"help\">Add up to 10 stock symbols to track (e.g., AAPL, GOOGL, MSFT)</p>";
         html += "<div id=\"symbol-list\">";
-        
+
         String symbols[10];
         int count = preferences.getSymbols(symbols);
-        
-        for (int i = 0; i < count; i++) {
+
+        for (int i = 0; i < count; i++)
+        {
             html += "<div class=\"symbol-row\">";
             html += "<input type=\"text\" class=\"symbol-input\" placeholder=\"SYMBOL\" value=\"" + symbols[i] + "\" maxlength=\"10\">";
             html += "<button onclick=\"removeSymbol(this)\" class=\"btn-remove\">X</button>";
             html += "</div>";
         }
-        
-        if (count == 0) {
+
+        if (count == 0)
+        {
             html += "<div class=\"symbol-row\">";
             html += "<input type=\"text\" class=\"symbol-input\" placeholder=\"SYMBOL\" maxlength=\"10\">";
             html += "<button onclick=\"removeSymbol(this)\" class=\"btn-remove\">X</button>";
             html += "</div>";
         }
-        
+
         html += "</div>";
         html += "<button onclick=\"addSymbol()\" class=\"btn-secondary\">Add Symbol</button>";
         html += "</div>";
-        
+
         html += "<div class=\"actions\">";
         html += "<button onclick=\"saveConfig()\" class=\"btn-primary\">Save Configuration</button>";
         html += "<button onclick=\"clearConfig()\" class=\"btn-danger\">Clear All</button>";
         html += "</div>";
-        
+
         html += "<div id=\"message\" class=\"message\"></div>";
         html += "</div>";
-        
+
         html += "<script>";
         html += generateJS();
         html += "</script>";
         html += "</body></html>";
-        
+
         return html;
     }
 
-    String ForexConfigServer::generateCSS() {
+    String ForexConfigServer::generateCSS()
+    {
         return "*{margin:0;padding:0;box-sizing:border-box}"
                "body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;"
                "background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);"
@@ -278,7 +318,8 @@ namespace ForexExample {
                "@media (max-width:600px){body{padding:10px}h1{font-size:24px}.card{padding:20px}}";
     }
 
-    String ForexConfigServer::generateJS() {
+    String ForexConfigServer::generateJS()
+    {
         return "function showMessage(t,e){const s=document.getElementById('message');s.textContent=t,s.className='message '+e,setTimeout(()=>{s.style.display='none'},5e3)}"
                "function addSymbol(){const t=document.getElementById('symbol-list'),e=t.getElementsByClassName('symbol-row');if(e.length>=10)return void showMessage('Maximum 10 symbols allowed','error');const s=document.createElement('div');s.className='symbol-row',s.innerHTML='<input type=\"text\" class=\"symbol-input\" placeholder=\"SYMBOL\" maxlength=\"10\"><button onclick=\"removeSymbol(this)\" class=\"btn-remove\">X</button>',t.appendChild(s)}"
                "function removeSymbol(t){const e=document.getElementById('symbol-list').getElementsByClassName('symbol-row');return e.length<=1?void showMessage('At least one symbol required','error'):void t.parentElement.remove()}"
@@ -287,63 +328,79 @@ namespace ForexExample {
                "async function clearConfig(){if(!confirm('Are you sure you want to clear all configuration?'))return;try{const t=await fetch('/forex/clear',{method:'POST'}),e=await t.json();showMessage(e.message,e.success?'success':'error'),e.success&&setTimeout(()=>{location.reload()},1500)}catch(t){showMessage('Clear failed: '+t.message,'error')}}";
     }
 
-    bool ForexConfigServer::isValidApiKey(const String& apiKey) {
-        if (apiKey.length() < 10 || apiKey.length() > 64) {
+    bool ForexConfigServer::isValidApiKey(const String &apiKey)
+    {
+        if (apiKey.length() < 10 || apiKey.length() > 64)
+        {
             return false;
         }
-        
-        for (unsigned int i = 0; i < apiKey.length(); i++) {
-            if (!isalnum(apiKey[i])) {
+
+        for (unsigned int i = 0; i < apiKey.length(); i++)
+        {
+            if (!isalnum(apiKey[i]))
+            {
                 return false;
             }
         }
-        
+
         return true;
     }
 
-    bool ForexConfigServer::isValidSymbol(const String& symbol) {
-        if (symbol.length() < 1 || symbol.length() > 10) {
+    bool ForexConfigServer::isValidSymbol(const String &symbol)
+    {
+        if (symbol.length() < 1 || symbol.length() > 10)
+        {
             return false;
         }
-        
-        for (unsigned int i = 0; i < symbol.length(); i++) {
-            if (!isalpha(symbol[i])) {
+
+        for (unsigned int i = 0; i < symbol.length(); i++)
+        {
+            if (!isalpha(symbol[i]))
+            {
                 return false;
             }
         }
-        
+
         return true;
     }
 
-    void ForexConfigServer::sendJsonResponse(bool success, const String& message) {
+    void ForexConfigServer::sendJsonResponse(bool success, const String &message)
+    {
         String json = "{\"success\":" + String(success ? "true" : "false");
         json += ",\"message\":\"" + message + "\"}";
-        
+
         webServer->send(200, "application/json", json);
     }
 
-    String ForexConfigServer::urlDecode(const String& encoded) {
+    String ForexConfigServer::urlDecode(const String &encoded)
+    {
         String decoded = "";
-        
-        for (unsigned int i = 0; i < encoded.length(); i++) {
+
+        for (unsigned int i = 0; i < encoded.length(); i++)
+        {
             char c = encoded.charAt(i);
-            
-            if (c == '+') {
+
+            if (c == '+')
+            {
                 decoded += ' ';
-            } else if (c == '%' && i + 2 < encoded.length()) {
+            }
+            else if (c == '%' && i + 2 < encoded.length())
+            {
                 char h1 = encoded.charAt(i + 1);
                 char h2 = encoded.charAt(i + 2);
-                
+
                 int v1 = (h1 >= '0' && h1 <= '9') ? (h1 - '0') : (toupper(h1) - 'A' + 10);
                 int v2 = (h2 >= '0' && h2 <= '9') ? (h2 - '0') : (toupper(h2) - 'A' + 10);
-                
+
                 decoded += (char)((v1 << 4) | v2);
                 i += 2;
-            } else {
+            }
+            else
+            {
                 decoded += c;
             }
         }
-        
+
         return decoded;
     }
 
