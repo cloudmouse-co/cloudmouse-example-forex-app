@@ -62,13 +62,6 @@ namespace ForexExample
 
         // Step 2: Initialize config server (always available, even without WiFi)
         configServer = new ForexConfigServer(*preferences);
-        if (!configServer->init())
-        {
-            Serial.println("❌ Failed to initialize config server");
-            changeState(ForexAppState::ERROR);
-            return false;
-        }
-        Serial.println("✅ Config server initialized");
 
         // Step 3: Check if we have valid configuration
         validateConfiguration();
@@ -156,6 +149,12 @@ namespace ForexExample
             if (WiFi.getMode() == WIFI_MODE_STA || WiFi.getMode() == WIFI_MODE_AP || WiFi.getMode() == WIFI_MODE_APSTA)
             {
                 Serial.println("🌐 WiFi ready, starting config server...");
+                if (!configServer->init())
+                {
+                    Serial.println("❌ Failed to initialize config server");
+                    changeState(ForexAppState::ERROR);
+                }
+                Serial.println("✅ Config server initialized");
                 configServerStarted = true;
             }
         }
