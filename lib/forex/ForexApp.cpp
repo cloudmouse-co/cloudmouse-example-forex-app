@@ -126,6 +126,26 @@ namespace ForexExample
                 Serial.println("✅ LVGL ready, initializing ForexDisplayManager...");
                 displayManager->init();
                 forexDisplayInited = true;
+
+                // ✅ NOW do the initial poll if we have dataService but no cache
+                if (dataService && !dataService->hasFreshCache())
+                {
+                    Serial.println("📺 No cached data - showing loading screen");
+                    displayManager->showScreen(ForexScreen::LOADING);
+
+                    Serial.println("🔄 Forcing initial data poll...");
+                    if (dataService->poll())
+                    {
+                        Serial.println("✅ Initial poll successful - showing symbol list");
+                        lastPollTime = millis();
+                        displayManager->showScreen(ForexScreen::SYMBOL_LIST);
+                    }
+                    else
+                    {
+                        Serial.println("⚠️ Initial poll failed - showing list anyway");
+                        displayManager->showScreen(ForexScreen::SYMBOL_LIST);
+                    }
+                }
             }
         }
 
@@ -144,7 +164,6 @@ namespace ForexExample
         CloudMouse::Event sdkEvent;
         while (CloudMouse::EventBus::instance().receiveFromUI(sdkEvent, 0))
         {
-            // Process SDK event for business logic
             processSDKEvent(sdkEvent);
         }
 
@@ -268,18 +287,8 @@ namespace ForexExample
             dataService = new ForexDataService(*preferences);
             dataService->init();
 
-            // 🚀 FORCE INITIAL POLL to populate cache
-            // This ensures we have data even if market is closed
-            Serial.println("🔄 Forcing initial data poll...");
-            if (dataService->poll())
-            {
-                Serial.println("✅ Initial poll successful - cache populated");
-                lastPollTime = millis();
-            }
-            else
-            {
-                Serial.println("⚠️ Initial poll failed - will retry later");
-            }
+            // ✅ DON'T poll here - wait for DisplayManager to be ready!
+            Serial.println("⏳ DataService ready - waiting for UI initialization...");
         }
 
         // Check market status and start/pause polling based on hours
@@ -384,26 +393,42 @@ namespace ForexExample
         // Get current time
         time_t now;
         time(&now);
-        struct tm *timeinfo = localtime(&now);
+
+        // ✅ Use gmtime() to get UTC, then convert to EST
+        struct tm *timeinfo = gmtime(&now);
+
+        // Convert UTC to EST (UTC-5)
+        // EST is 5 hours behind UTC
+        int hour_utc = timeinfo->tm_hour;
+        int hour_est = hour_utc - 5;
+
+        // Handle day rollover
+        int day_est = timeinfo->tm_wday;
+        if (hour_est < 0)
+        {
+            hour_est += 24;
+            day_est = (day_est - 1 + 7) % 7;
+        }
 
         // Check if weekend (Saturday=6, Sunday=0)
-        int dayOfWeek = timeinfo->tm_wday;
-        if (dayOfWeek == 0 || dayOfWeek == 6)
+        if (day_est == 0 || day_est == 6)
         {
-            return false; // Weekend - market closed
+            Serial.printf("📅 Weekend (day %d) - market closed\n", day_est);
+            return false;
         }
 
         // NASDAQ hours: 9:30 AM - 4:00 PM EST
-        // For simplicity, we check local time
-        // In production, you'd want to handle timezone conversion
-        int hour = timeinfo->tm_hour;
-        int minute = timeinfo->tm_min;
-
-        int currentMinutes = hour * 60 + minute;
+        int minute_est = timeinfo->tm_min;
+        int currentMinutes_est = hour_est * 60 + minute_est;
         int openMinutes = 9 * 60 + 30; // 9:30 AM
         int closeMinutes = 16 * 60;    // 4:00 PM
 
-        return (currentMinutes >= openMinutes && currentMinutes < closeMinutes);
+        bool isOpen = (currentMinutes_est >= openMinutes && currentMinutes_est < closeMinutes);
+
+        Serial.printf("🕐 Current time EST: %02d:%02d (day %d) - Market %s\n",
+                      hour_est, minute_est, day_est, isOpen ? "OPEN" : "CLOSED");
+
+        return isOpen;
     }
 
     void ForexApp::checkAndUpdateMarketStatus()
