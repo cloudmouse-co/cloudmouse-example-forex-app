@@ -143,7 +143,7 @@ namespace ForexExample {
          * 
          * Should be called from UI task (Core 1)
          */
-        void update();
+        // void update();
         
         /**
          * Process forex-specific event

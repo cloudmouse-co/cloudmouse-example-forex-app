@@ -1,9 +1,11 @@
 #ifndef LV_CONF_H
 #define LV_CONF_H
 
+#define LV_MEM_SIZE (56U * 1024U)
+#define LV_USE_PSRAM 1
+
 #define LV_COLOR_DEPTH 16
 #define LV_COLOR_16_SWAP 1
-#define LV_MEM_SIZE (48U * 1024U)
 
 #define LV_FONT_MONTSERRAT_14 1
 #define LV_FONT_MONTSERRAT_16 1
@@ -40,7 +42,6 @@
 #define LV_USE_BAR 1
 #define LV_USE_FLEX 1
 #define LV_USE_GRID 1
-#define LV_USE_PSRAM 1
 
 #define LV_USE_SPINNER 1
 #define LV_USE_QRCODE 1

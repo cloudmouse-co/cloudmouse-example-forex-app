@@ -29,6 +29,8 @@ namespace CloudMouse
 
     Serial.println("🎬 Boot sequence started - LED animation active");
     Serial.println("✅ Core initialized successfully");
+
+    forexApp->init();
   }
 
   void Core::startUITask()
@@ -128,9 +130,8 @@ namespace CloudMouse
     processSerialCommands();
     processEvents();
 
-    if (forexApp && currentState == SystemState::RUNNING)
+    if (forexApp)
     {
-      forexApp->init();
       forexApp->update();
     }
 
@@ -214,6 +215,9 @@ namespace CloudMouse
         // Return to main interface
         Event helloEvent(EventType::DISPLAY_WAKE_UP);
         EventBus::instance().sendToUI(helloEvent);
+
+        Event wifiConnected(EventType::WIFI_CONNECTED);
+        EventBus::instance().sendToMain(wifiConnected);
 
         setState(SystemState::READY);
       }
@@ -302,6 +306,10 @@ namespace CloudMouse
     {
       eventsProcessed++;
 
+      if (forexApp) {
+        forexApp->processSDKEvent(event);
+      }
+      
       switch (event.type)
       {
       case EventType::ENCODER_ROTATION:
@@ -333,9 +341,9 @@ namespace CloudMouse
       ledManager->activate();
     }
 
-    if (forexApp) {
-        forexApp->processSDKEvent(event);
-    }
+    // if (forexApp) {
+    //     forexApp->processSDKEvent(event);
+    // }
 
     // Forward to UI system
     EventBus::instance().sendToUI(event);
@@ -355,9 +363,9 @@ namespace CloudMouse
     // Audio feedback
     SimpleBuzzer::buzz();
 
-    if (forexApp) {
-        forexApp->processSDKEvent(event);
-    }
+    // if (forexApp) {
+    //     forexApp->processSDKEvent(event);
+    // }
 
     // Forward to UI system
     EventBus::instance().sendToUI(event);
@@ -376,9 +384,9 @@ namespace CloudMouse
     // Audio feedback: error pattern
     SimpleBuzzer::error();
     
-    if (forexApp) {
-        forexApp->processSDKEvent(event);
-    }
+    // if (forexApp) {
+    //     forexApp->processSDKEvent(event);
+    // }
     
     // Forward to UI system
     EventBus::instance().sendToUI(event);
@@ -450,22 +458,22 @@ namespace CloudMouse
     uint32_t freeHeap = ESP.getFreeHeap();
     uint32_t minFreeHeap = ESP.getMinFreeHeap();
 
-    Serial.printf("🏥 Health: Free=%d, Min=%d, Tasks=%d, Cycles=%d, Events=%d\n",
-                  freeHeap, minFreeHeap, uxTaskGetNumberOfTasks(),
-                  coordinationCycles, eventsProcessed);
+    // Serial.printf("🏥 Health: Free=%d, Min=%d, Tasks=%d, Cycles=%d, Events=%d\n",
+    //               freeHeap, minFreeHeap, uxTaskGetNumberOfTasks(),
+    //               coordinationCycles, eventsProcessed);
 
     // Monitor UI task stack usage
     if (uiTaskHandle)
     {
       UBaseType_t uiStack = uxTaskGetStackHighWaterMark(uiTaskHandle);
-      Serial.printf("🎮 UI Task stack remaining: %d bytes\n", uiStack * sizeof(StackType_t));
+      // Serial.printf("🎮 UI Task stack remaining: %d bytes\n", uiStack * sizeof(StackType_t));
     }
 
     // Monitor LED task stack usage
     if (ledManager && ledManager->getAnimationTaskHandle())
     {
       UBaseType_t ledStack = uxTaskGetStackHighWaterMark(ledManager->getAnimationTaskHandle());
-      Serial.printf("💡 LED Task stack remaining: %d bytes\n", ledStack * sizeof(StackType_t));
+      // Serial.printf("💡 LED Task stack remaining: %d bytes\n", ledStack * sizeof(StackType_t));
 
       // Auto-restart LED task if stack is critically low
       if (ledStack < 512)
@@ -476,7 +484,7 @@ namespace CloudMouse
     }
 
     // Log event bus performance
-    EventBus::instance().logStatus();
+    // EventBus::instance().logStatus();
 
     // Memory warning
     if (freeHeap < 50000)

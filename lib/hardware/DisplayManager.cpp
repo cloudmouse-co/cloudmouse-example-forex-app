@@ -111,6 +111,7 @@ namespace CloudMouse::Hardware
         Event event;
         while (EventBus::instance().receiveFromMain(event, 0))
         {
+            Serial.println("DISPLAY MANAGER RECEIVE FROM MAIN");
             processEvent(event);
         }
         lv_timer_handler();
@@ -194,10 +195,10 @@ namespace CloudMouse::Hardware
         {
         case EventType::DISPLAY_WAKE_UP:
             wakeUp();
-            // Display activation - show default interactive screen
-            Serial.println("📺 Display wake up - switching to HELLO_WORLD");
-            currentScreen = Screen::HELLO_WORLD;
-            lv_disp_load_scr(screen_hello_world);
+            // // Display activation - show default interactive screen
+            // Serial.println("📺 Display wake up - switching to HELLO_WORLD");
+            // currentScreen = Screen::HELLO_WORLD;
+            // lv_disp_load_scr(screen_hello_world);
             break;
 
         case EventType::DISPLAY_WIFI_CONNECTING:

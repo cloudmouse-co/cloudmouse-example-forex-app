@@ -109,8 +109,8 @@ namespace CloudMouse::Hardware
             // Health monitoring every 1000 loops
             if (loopCounter % 1000 == 0)
             {
-                Serial.printf("💡 LED Task alive - loops: %d, free stack: %d\n",
-                              loopCounter, uxTaskGetStackHighWaterMark(NULL));
+                // Serial.printf("💡 LED Task alive - loops: %d, free stack: %d\n",
+                //               loopCounter, uxTaskGetStackHighWaterMark(NULL));
             }
 
             // Process incoming events from other tasks

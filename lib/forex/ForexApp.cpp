@@ -21,7 +21,7 @@ namespace ForexExample
     ForexApp::ForexApp()
         : dataService(nullptr), preferences(nullptr), configServer(nullptr), currentState(ForexAppState::INITIALIZING), previousState(ForexAppState::INITIALIZING), lastPollTime(0), lastMarketCheck(0)
     {
-        Serial.println("📊 ForexApp constructor");
+        APP_LOGGER("📊 ForexApp constructor");
     }
 
     ForexApp::~ForexApp()
@@ -34,7 +34,7 @@ namespace ForexExample
         if (configServer)
             delete configServer;
 
-        Serial.println("📊 ForexApp destroyed");
+        APP_LOGGER("📊 ForexApp destroyed");
     }
 
     // ============================================================================
@@ -48,17 +48,17 @@ namespace ForexExample
             return true;
         }
 
-        Serial.println("📊 Initializing ForexApp...");
+        APP_LOGGER("📊 Initializing ForexApp...");
 
         // Step 1: Initialize preferences service
         preferences = new ForexPreferences();
         if (!preferences->init())
         {
-            Serial.println("❌ Failed to initialize preferences");
+            APP_LOGGER("❌ Failed to initialize preferences");
             changeState(ForexAppState::ERROR);
             return false;
         }
-        Serial.println("✅ Preferences loaded");
+        APP_LOGGER("✅ Preferences loaded");
 
         // Step 2: Initialize config server (always available, even without WiFi)
         configServer = new ForexConfigServer(*preferences);
@@ -66,40 +66,15 @@ namespace ForexExample
         // Step 3: Check if we have valid configuration
         validateConfiguration();
 
-        // Step 4: Initialize data service if config is valid
-        if (currentState != ForexAppState::CONFIG_NEEDED)
-        {
-            dataService = new ForexDataService(*preferences);
-            if (!dataService->init())
-            {
-                Serial.println("⚠️ Data service init failed, will retry later");
-            }
-            else
-            {
-                Serial.println("✅ Data service initialized");
-
-                // 🚀 NEW: If WiFi is already connected, do initial poll NOW
-                // This populates cache BEFORE DisplayManager tries to read it
-                if (WiFi.status() == WL_CONNECTED)
-                {
-                    Serial.println("🔄 WiFi already connected - forcing initial poll...");
-                    if (dataService->poll())
-                    {
-                        Serial.println("✅ Initial cache populated");
-                        lastPollTime = millis();
-                    }
-                    else
-                    {
-                        Serial.println("⚠️ Initial poll failed");
-                    }
-                }
-            }
-        }
-
         // Step 5: NOW create DisplayManager (cache is populated if WiFi was ready)
         displayManager = new ForexDisplayManager(*preferences);
 
-        Serial.println("✅ ForexApp initialized successfully!");
+        // Step 5: NOW create DisplayManager (cache is populated if WiFi was ready)
+        dataService = new ForexDataService(*preferences, displayManager);
+        dataService->init();
+
+
+        APP_LOGGER("✅ ForexApp initialized successfully!");
         inited = true;
         return true;
     }
@@ -112,50 +87,14 @@ namespace ForexExample
     {
         // Step 1: Initialize display manager when LVGL is ready
         static bool forexDisplayInited = false;
+
         if (!forexDisplayInited && displayManager)
         {
             if (lv_display_get_default() != nullptr)
             {
-                Serial.println("✅ LVGL ready, initializing ForexDisplayManager...");
+                APP_LOGGER("✅ LVGL ready, initializing ForexDisplayManager...");
                 displayManager->init();
                 forexDisplayInited = true;
-
-                // ✅ NOW do the initial poll if we have dataService but no cache
-                if (dataService && !dataService->hasFreshCache())
-                {
-                    Serial.println("📺 No cached data - showing loading screen");
-                    displayManager->showScreen(ForexScreen::LOADING);
-
-                    Serial.println("🔄 Forcing initial data poll...");
-                    if (dataService->poll())
-                    {
-                        Serial.println("✅ Initial poll successful - showing symbol list");
-                        lastPollTime = millis();
-                        displayManager->showScreen(ForexScreen::SYMBOL_LIST);
-                    }
-                    else
-                    {
-                        Serial.println("⚠️ Initial poll failed - showing list anyway");
-                        displayManager->showScreen(ForexScreen::SYMBOL_LIST);
-                    }
-                }
-            }
-        }
-
-        // Step 2: Start config server when WiFi is ready
-        static bool configServerStarted = false;
-        if (!configServerStarted && configServer)
-        {
-            if (WiFi.getMode() == WIFI_MODE_STA || WiFi.getMode() == WIFI_MODE_AP || WiFi.getMode() == WIFI_MODE_APSTA)
-            {
-                Serial.println("🌐 WiFi ready, starting config server...");
-                if (!configServer->init())
-                {
-                    Serial.println("❌ Failed to initialize config server");
-                    changeState(ForexAppState::ERROR);
-                }
-                Serial.println("✅ Config server initialized");
-                configServerStarted = true;
             }
         }
 
@@ -163,6 +102,11 @@ namespace ForexExample
         CloudMouse::Event sdkEvent;
         while (CloudMouse::EventBus::instance().receiveFromUI(sdkEvent, 0))
         {
+            APP_LOGGER("-------------------------------------------------------");
+            APP_LOGGER("RECEIVING FROM UI");
+            Serial.printf("%d", (int)sdkEvent.type);
+            APP_LOGGER("-------------------------------------------------------");
+
             processSDKEvent(sdkEvent);
         }
 
@@ -180,43 +124,49 @@ namespace ForexExample
         }
 
         // Step 6: Poll forex data intelligently based on state and cache freshness
-        // - If market is OPEN (POLLING_ACTIVE): always poll at interval
-        // - If market is CLOSED (POLLING_PAUSED): only poll if cache is stale/missing
         if (dataService && millis() - lastPollTime > POLL_INTERVAL_MS)
         {
             bool shouldPoll = false;
 
             if (currentState == ForexAppState::POLLING_ACTIVE)
             {
+                APP_LOGGER("🔄 Polling during market open - loading...");
                 // Market is open - always poll for fresh data
                 shouldPoll = true;
             }
             else if (currentState == ForexAppState::POLLING_PAUSED)
             {
                 // Market is closed - only poll if we don't have fresh cached data
-                // This ensures we refresh stale data even when market is closed
                 if (!dataService->hasFreshCache())
                 {
-                    Serial.println("🔄 Cache stale during market close - refreshing...");
+                    APP_LOGGER("🔄 Cache stale during market close - refreshing...");
                     shouldPoll = true;
                 }
             }
 
             if (shouldPoll)
             {
-                Serial.println("🔄 Polling forex data...");
+                APP_LOGGER("🔄 Polling forex data...");
+                displayManager->showScreen(ForexScreen::LOADING);
 
                 if (dataService->poll())
                 {
                     lastPollTime = millis();
-                    Serial.println("✅ Data poll successful");
+                    APP_LOGGER("✅ Data poll successful");
                 }
                 else
                 {
-                    Serial.println("⚠️ Data poll failed");
+                    APP_LOGGER("⚠️ Data poll failed");
                     ForexEventData errorEvt = ForexEventData::apiError("Poll failed", 0);
                     notifyDisplay(errorEvt);
                 }
+            }
+            else
+            {
+                // ✅ Cache is fresh, skip poll
+                APP_LOGGER("📦 Using fresh cache - skipping poll");
+                displayManager->showScreen(ForexScreen::SYMBOL_LIST);
+                lastPollTime = millis(); // ✅ Reset timer
             }
         }
 
@@ -259,7 +209,7 @@ namespace ForexExample
         case CloudMouse::EventType::ENCODER_LONG_PRESS:
         {
             // Long press could open config menu
-            Serial.println("🔧 Long press detected - showing config");
+            APP_LOGGER("🔧 Long press detected - showing config");
             ForexEventData evt;
             evt.type = ForexEventType::FOREX_SHOW_CONFIG;
             notifyDisplay(evt);
@@ -267,7 +217,7 @@ namespace ForexExample
         }
 
         default:
-            // Ignore other SDK events
+            // notifyDisplay(event);
             break;
         }
     }
@@ -278,25 +228,38 @@ namespace ForexExample
 
     void ForexApp::handleWiFiConnected()
     {
-        Serial.println("📡 WiFi connected - starting data service");
+        APP_LOGGER("📡 WiFi connected - starting network services");
+
+        if (configServer) {
+            if (configServer && !configServer->init()) {
+                APP_LOGGER("⚠️ config server init ERROR!");
+            }
+            APP_LOGGER("✅ config server started gracefully!");
+        }
 
         // If we have valid config and data service isn't running, start it
-        if (currentState != ForexAppState::CONFIG_NEEDED && !dataService)
+        if (currentState != ForexAppState::CONFIG_NEEDED && dataService)
         {
-            dataService = new ForexDataService(*preferences);
             dataService->init();
 
             // ✅ DON'T poll here - wait for DisplayManager to be ready!
-            Serial.println("⏳ DataService ready - waiting for UI initialization...");
+            APP_LOGGER("⏳ DataService ready");
         }
 
+        static bool initialPollDone = false; // ✅ NEW FLAG
+        if (dataService && !initialPollDone) 
+        {
+            dataService->poll();
+            initialPollDone = true;
+            lastPollTime = millis();
+        }
         // Check market status and start/pause polling based on hours
         checkAndUpdateMarketStatus();
     }
 
     void ForexApp::handleWiFiDisconnected()
     {
-        Serial.println("📡 WiFi disconnected - pausing polling");
+        APP_LOGGER("📡 WiFi disconnected - pausing polling");
 
         // Pause polling, but keep showing cached data
         if (currentState == ForexAppState::POLLING_ACTIVE)
@@ -316,8 +279,6 @@ namespace ForexExample
 
     void ForexApp::handleEncoderClick()
     {
-        Serial.println("🖱️ Encoder click - toggling view");
-
         // Create custom Forex event and send to UI
         ForexEventData evt;
         evt.type = ForexEventType::FOREX_ENCODER_CLICK;
@@ -346,14 +307,14 @@ namespace ForexExample
         switch (currentState)
         {
         case ForexAppState::CONFIG_NEEDED:
-        {
-            ForexEventData evt = ForexEventData::configNeeded();
-            notifyDisplay(evt);
-        }
-        break;
+            {
+                ForexEventData evt = ForexEventData::configNeeded();
+                notifyDisplay(evt);
+            }
+            break;
 
         case ForexAppState::POLLING_ACTIVE:
-            Serial.println("✅ Polling active - market is open");
+            APP_LOGGER("✅ Polling active - market is open");
             {
                 ForexEventData evt;
                 evt.type = ForexEventType::FOREX_MARKET_OPEN;
@@ -362,7 +323,7 @@ namespace ForexExample
             break;
 
         case ForexAppState::POLLING_PAUSED:
-            Serial.println("⏸️ Polling paused - market is closed");
+            APP_LOGGER("⏸️ Polling paused - market is closed");
             {
                 ForexEventData evt;
                 evt.type = ForexEventType::FOREX_MARKET_CLOSED;
@@ -371,7 +332,7 @@ namespace ForexExample
             break;
 
         case ForexAppState::ERROR:
-            Serial.println("❌ App in error state");
+            APP_LOGGER("❌ App in error state");
             {
                 ForexEventData evt = ForexEventData::apiError("App error", -1);
                 notifyDisplay(evt);
@@ -432,9 +393,9 @@ namespace ForexExample
 
     void ForexApp::checkAndUpdateMarketStatus()
     {
-        bool marketOpen = isMarketOpen();
+        bool marketOpen = true; //isMarketOpen();
 
-        if (marketOpen && currentState == ForexAppState::POLLING_PAUSED)
+        if (marketOpen)
         {
             // Market just opened
             changeState(ForexAppState::POLLING_ACTIVE);
@@ -442,7 +403,7 @@ namespace ForexExample
             // Immediately poll fresh data
             lastPollTime = 0; // Force immediate poll
         }
-        else if (!marketOpen && currentState == ForexAppState::POLLING_ACTIVE)
+        else if (!marketOpen)
         {
             // Market just closed
             changeState(ForexAppState::POLLING_PAUSED);
@@ -466,7 +427,7 @@ namespace ForexExample
 
         if (apiKey.isEmpty() || symbolCount == 0)
         {
-            Serial.println("⚠️ Configuration needed - no API key or symbols");
+            APP_LOGGER("⚠️ Configuration needed - no API key or symbols");
             changeState(ForexAppState::CONFIG_NEEDED);
         }
         else
@@ -486,7 +447,7 @@ namespace ForexExample
 
     void ForexApp::onConfigurationSaved()
     {
-        Serial.println("🎉 Configuration saved notification received!");
+        APP_LOGGER("🎉 Configuration saved notification received!");
 
         int currentSymbolCount = preferences->getSymbolCount();
         bool hasApiKey = preferences->hasApiKey();
@@ -494,12 +455,12 @@ namespace ForexExample
         // Config was added for the first time!
         if (currentState == ForexAppState::CONFIG_NEEDED && hasApiKey && currentSymbolCount > 0)
         {
-            Serial.println("🎉 First configuration detected! Starting services...");
+            APP_LOGGER("🎉 First configuration detected! Starting services...");
 
             // Initialize data service
             if (!dataService)
             {
-                dataService = new ForexDataService(*preferences);
+                dataService = new ForexDataService(*preferences, displayManager);
                 dataService->init();
             }
 
@@ -520,7 +481,7 @@ namespace ForexExample
         // Config was changed (symbols updated)
         else if (currentState != ForexAppState::CONFIG_NEEDED)
         {
-            Serial.println("🔄 Configuration updated! Reloading...");
+            APP_LOGGER("🔄 Configuration updated! Reloading...");
 
             // Notify display manager to recreate list
             ForexEventData evt;

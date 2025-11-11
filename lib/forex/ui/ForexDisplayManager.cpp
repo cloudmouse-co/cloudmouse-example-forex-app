@@ -39,8 +39,6 @@ namespace ForexExample
     {
         Serial.println("🎨 Initializing ForexDisplayManager...");
 
-        delay(500);
-
         encoder_group = lv_group_get_default();
         if (!encoder_group)
         {
@@ -57,15 +55,15 @@ namespace ForexExample
         createSymbolListScreen();
         createSymbolDetailScreen();
 
-        // Determine initial screen based on configuration
-        if (preferences.hasApiKey() && preferences.getSymbolCount() > 0)
-        {
-            showScreen(ForexScreen::SYMBOL_LIST);
-        }
-        else
-        {
-            showScreen(ForexScreen::CONFIG_NEEDED);
-        }
+        // // Determine initial screen based on configuration
+        // if (preferences.hasApiKey() && preferences.getSymbolCount() > 0)
+        // {
+        //     showScreen(ForexScreen::LOADING);
+        // }
+        // else
+        // {
+        //     showScreen(ForexScreen::CONFIG_NEEDED);
+        // }
 
         Serial.println("✅ ForexDisplayManager initialized");
         return true;
@@ -75,27 +73,28 @@ namespace ForexExample
     // MAIN UPDATE LOOP
     // ============================================================================
 
-    void ForexDisplayManager::update()
-    {
-        // ONLY consume custom Forex events from Core 0
-        // SDK events (encoder, WiFi, etc) are handled by ForexApp on Core 0
-        CloudMouse::Event event;
-        while (CloudMouse::EventBus::instance().receiveFromMain(event, 0))
-        {
-            // All events we receive here are custom Forex events
-            // They come with type >= 100 offset (see ForexEvents.h)
-            if (static_cast<int>(event.type) >= 100)
-            {
-                ForexEventData forexEvent;
-                forexEvent.type = static_cast<ForexEventType>(static_cast<int>(event.type) - 100);
-                forexEvent.value = event.value;
-                strncpy(forexEvent.stringData, event.stringData, sizeof(forexEvent.stringData) - 1);
-                forexEvent.price = event.value;
+    // void ForexDisplayManager::update()
+    // {
+    //     // ONLY consume custom Forex events from Core 0
+    //     // SDK events (encoder, WiFi, etc) are handled by ForexApp on Core 0
+    //     CloudMouse::Event event;
+    //     while (CloudMouse::EventBus::instance().receiveFromMain(event, 0))
+    //     {
+    //         Serial.println("DISPLAY MANAGER - EVENT RECEIVED");
+    //         // All events we receive here are custom Forex events
+    //         // They come with type >= 100 offset (see ForexEvents.h)
+    //         if (static_cast<int>(event.type) >= 100)
+    //         {
+    //             ForexEventData forexEvent;
+    //             forexEvent.type = static_cast<ForexEventType>(static_cast<int>(event.type) - 100);
+    //             forexEvent.value = event.value;
+    //             strncpy(forexEvent.stringData, event.stringData, sizeof(forexEvent.stringData) - 1);
+    //             forexEvent.price = event.value;
 
-                processForexEvent(forexEvent);
-            }
-        }
-    }
+    //             processForexEvent(forexEvent);
+    //         }
+    //     }
+    // }
 
     void ForexDisplayManager::processForexEvent(const ForexEventData &event)
     {
@@ -111,60 +110,29 @@ namespace ForexExample
 
         case ForexEventType::FOREX_DATA_UPDATED:
         {
-            // ✅ Show loading screen while fetching data (first symbol only)
-            static bool firstDataUpdate = true;
-            if (firstDataUpdate && currentScreen != ForexScreen::SYMBOL_LIST)
-            {
-                showScreen(ForexScreen::LOADING);
-                firstDataUpdate = false;
-            }
-
-            // Find symbol in our cache and update it
             String symbol = event.stringData;
             for (int i = 0; i < symbolCount; i++)
             {
                 if (symbolData[i].symbol == symbol)
                 {
-                    // ✅ Update price and change from event
+                    // ✅ Update ALL fields from event
                     symbolData[i].price = event.price;
-                    symbolData[i].changePercent = event.change_percent;
+                    symbolData[i].open = event.open;
+                    symbolData[i].high = event.high;
+                    symbolData[i].low = event.low;
+                    symbolData[i].previousClose = event.previousClose;
+                    symbolData[i].changePercent = event.changePercent;
                     symbolData[i].dataValid = true;
 
-                    // ✅ Load OHLC from cache (the event doesn't carry OHLC)
-                    CachedSymbolData cached = preferences.getCachedData(symbol);
-                    if (cached.isValid())
-                    {
-                        symbolData[i].open = cached.open;
-                        symbolData[i].high = cached.high;
-                        symbolData[i].low = cached.low;
-                        symbolData[i].previousClose = cached.previousClose;
-                    }
+                    // ❌ NON serve più ricaricare dalla cache, ce li abbiamo già!
+                    // CachedSymbolData cached = preferences.getCachedData(symbol);
 
                     updateListItem(i, symbolData[i]);
 
-                    // If this is the selected symbol in detail view, update it
                     if (currentScreen == ForexScreen::SYMBOL_DETAIL &&
                         selectedSymbolIndex == i)
                     {
                         updateSymbolDetail(symbolData[i]);
-                    }
-
-                    // ✅ After all symbols updated, switch to list view
-                    // Check if all symbols have data now
-                    bool allDataValid = true;
-                    for (int j = 0; j < symbolCount; j++)
-                    {
-                        if (!symbolData[j].dataValid)
-                        {
-                            allDataValid = false;
-                            break;
-                        }
-                    }
-
-                    if (allDataValid && currentScreen == ForexScreen::LOADING)
-                    {
-                        Serial.println("✅ All data loaded - showing symbol list");
-                        showScreen(ForexScreen::SYMBOL_LIST);
                     }
 
                     break;
@@ -321,10 +289,10 @@ namespace ForexExample
             if (cached.isValid())
             {
                 symbolData[i].price = cached.price;
-                symbolData[i].open = cached.open;                   
-                symbolData[i].high = cached.high;                   
-                symbolData[i].low = cached.low;                     
-                symbolData[i].previousClose = cached.previousClose; 
+                symbolData[i].open = cached.open;
+                symbolData[i].high = cached.high;
+                symbolData[i].low = cached.low;
+                symbolData[i].previousClose = cached.previousClose;
                 symbolData[i].changePercent = cached.changePercent;
                 symbolData[i].dataValid = true;
             }
@@ -360,7 +328,8 @@ namespace ForexExample
             lv_obj_t *price_label = lv_label_create(item);
             if (symbolData[i].dataValid)
             {
-                lv_label_set_text(price_label, formatPrice(symbolData[i].price).c_str());
+                // lv_label_set_text(price_label, formatPrice(symbolData[i].price).c_str());
+                lv_label_set_text_fmt(price_label, "%.2f", symbolData[i].price);
             }
             else
             {
@@ -374,7 +343,8 @@ namespace ForexExample
             lv_obj_t *change_label = lv_label_create(item);
             if (symbolData[i].dataValid)
             {
-                lv_label_set_text(change_label, formatChangePercent(symbolData[i].changePercent).c_str());
+                // lv_label_set_text(change_label, formatChangePercent(symbolData[i].changePercent).c_str());
+                lv_label_set_text_fmt(change_label, "%.2f%%", symbolData[i].changePercent);
                 lv_obj_set_style_text_color(change_label, getChangeColor(symbolData[i].changePercent), 0);
             }
             else
@@ -609,21 +579,12 @@ namespace ForexExample
         // LVGL encoder group handles scrolling automatically
         // We just need to make sure our list items are in the group
         Serial.printf("🔄 UI handling encoder rotation: %d\n", delta);
-
-        // // ✅ Scroll to focused item automatically!
-        // if (currentScreen == ForexScreen::SYMBOL_LIST)
-        // {
-        //     lv_obj_t *focused = lv_group_get_focused(encoder_group);
-        //     if (focused != nullptr)
-        //     {
-        //         // Scroll the container to show the focused item
-        //         lv_obj_scroll_to_view(focused, LV_ANIM_ON);
-        //     }
-        // }
     }
 
     void ForexDisplayManager::handleEncoderClick()
     {
+        Serial.printf("🔄 UI handling encoder click");
+
         if (currentScreen == ForexScreen::SYMBOL_LIST)
         {
             // Get focused item index
