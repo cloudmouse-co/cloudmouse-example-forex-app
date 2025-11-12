@@ -88,8 +88,8 @@ namespace ForexExample
         float changePercent;
         bool dataValid;
 
-        SymbolListItem() : price(0), open(0), high(0), low(0),
-                           previousClose(0), changePercent(0), dataValid(false) {}
+        SymbolListItem() : price(0.0f), open(0.0f), high(0.0f), low(0.0f),
+                           previousClose(0.0f), changePercent(0.0f), dataValid(false) {}
     };
 
     /**

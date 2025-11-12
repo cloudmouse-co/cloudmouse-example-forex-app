@@ -45,6 +45,8 @@ namespace ForexExample
         float changePercent;
         uint32_t timestamp;
 
+        CachedSymbolData() : price(0.0f), changePercent(0.0f), timestamp(0) {}  
+
         bool isValid() const
         {
             return !symbol.isEmpty() && timestamp > 0;

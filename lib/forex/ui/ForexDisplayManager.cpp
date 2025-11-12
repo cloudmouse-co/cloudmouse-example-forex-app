@@ -113,13 +113,15 @@ namespace ForexExample
             break;
 
         case ForexEventType::FOREX_CONFIG_UPDATED:
+        {
+            CloudMouse::Event wakeup = CloudMouse::EventType::DISPLAY_WAKE_UP;
+            CloudMouse::EventBus::instance().sendToUI(wakeup);
 
             showScreen(ForexScreen::CONFIG_SAVED);
-            delay(10);
-
+            delay(500);
             scheduleRecreateSymbolList();
-
-            break;
+        }
+        break;
 
         case ForexEventType::FOREX_DATA_UPDATED:
         {
@@ -244,32 +246,29 @@ namespace ForexExample
         lv_obj_set_style_bg_color(screen_symbol_list, lv_color_hex(0x1a1a1a), 0);
 
         // Header
-        lv_obj_t *header = lv_obj_create(screen_symbol_list);
-        lv_obj_set_size(header, LV_PCT(100), 60);
-        lv_obj_align(header, LV_ALIGN_TOP_MID, 0, 0);
-        lv_obj_set_style_bg_color(header, lv_color_hex(0x667eea), 0);
-        lv_obj_set_style_border_width(header, 0, 0);
-        lv_obj_set_style_radius(header, 0, 0);
+        // lv_obj_t *header = lv_obj_create(screen_symbol_list);
+        // lv_obj_set_size(header, LV_PCT(100), 60);
+        // lv_obj_align(header, LV_ALIGN_TOP_MID, 0, 0);
+        // lv_obj_set_style_bg_color(header, lv_color_hex(0x667eea), 0);
+        // lv_obj_set_style_border_width(header, 0, 0);
+        // lv_obj_set_style_radius(header, 0, 0);
 
-        label_list_title = lv_label_create(header);
-        lv_label_set_text(label_list_title, LV_SYMBOL_LIST " Market Overview");
-        lv_obj_set_style_text_font(label_list_title, &lv_font_montserrat_20, 0);
-        lv_obj_set_style_text_color(label_list_title, lv_color_hex(0xffffff), 0);
-        lv_obj_center(label_list_title);
+        // label_list_title = lv_label_create(header);
+        // lv_label_set_text(label_list_title, LV_SYMBOL_LIST " Market Overview");
+        // lv_obj_set_style_text_font(label_list_title, &lv_font_montserrat_20, 0);
+        // lv_obj_set_style_text_color(label_list_title, lv_color_hex(0xffffff), 0);
+        // lv_obj_center(label_list_title);
 
         // List container
         list_symbols = lv_obj_create(screen_symbol_list);
-        lv_obj_set_size(list_symbols, LV_PCT(100), 200);
-        lv_obj_align(list_symbols, LV_ALIGN_TOP_MID, 0, 65);
+        lv_obj_set_size(list_symbols, LV_PCT(100), 270);
+        lv_obj_align(list_symbols, LV_ALIGN_TOP_MID, 0, 2);
         lv_obj_set_style_bg_color(list_symbols, lv_color_hex(0x1a1a1a), 0);
         lv_obj_set_style_border_width(list_symbols, 0, 0);
         lv_obj_set_style_pad_all(list_symbols, 5, 0);
         lv_obj_set_flex_flow(list_symbols, LV_FLEX_FLOW_COLUMN);
         lv_obj_set_flex_align(list_symbols, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START);
         lv_obj_set_scrollbar_mode(list_symbols, LV_SCROLLBAR_MODE_AUTO);
-
-        // lv_obj_set_scroll_snap_y(list_symbols, LV_SCROLL_SNAP_CENTER);
-        // lv_obj_update_snap(list_symbols, LV_ANIM_ON);
 
         // Create list item templates (will be populated later)
         for (int i = 0; i < MAX_SYMBOLS; i++)
@@ -284,6 +283,7 @@ namespace ForexExample
         lv_obj_set_style_bg_color(footer, lv_color_hex(0x2a2a2a), 0);
         lv_obj_set_style_border_width(footer, 0, 0);
         lv_obj_set_style_radius(footer, 0, 0);
+        lv_obj_set_scrollbar_mode(footer, LV_SCROLLBAR_MODE_OFF);
 
         label_list_status = lv_label_create(footer);
         lv_label_set_text(label_list_status, "Market: Closed");
@@ -722,7 +722,7 @@ namespace ForexExample
 
         if (target_screen)
         {
-            lv_screen_load_anim(target_screen, LV_SCR_LOAD_ANIM_FADE_IN, 200, 0, false);
+            lv_screen_load_anim(target_screen, LV_SCR_LOAD_ANIM_FADE_ON, 500, 0, false);
         }
     }
 
@@ -754,13 +754,30 @@ namespace ForexExample
 
         if (price_label)
         {
-            lv_label_set_text(price_label, formatPrice(data.price).c_str());
+            if (data.dataValid)
+            {
+                lv_label_set_text(price_label, formatPrice(data.price).c_str());
+                lv_obj_set_style_text_color(price_label, lv_color_hex(0xcccccc), 0);
+            }
+            else
+            {
+                lv_label_set_text(price_label, "---");
+                lv_obj_set_style_text_color(price_label, lv_color_hex(0x888888), 0);
+            }
         }
 
         if (change_label)
         {
-            lv_label_set_text(change_label, formatChangePercent(data.changePercent).c_str());
-            lv_obj_set_style_text_color(change_label, getChangeColor(data.changePercent), 0);
+            if (data.dataValid)
+            {
+                lv_label_set_text(change_label, formatChangePercent(data.changePercent).c_str());
+                lv_obj_set_style_text_color(change_label, getChangeColor(data.changePercent), 0);
+            }
+            else
+            {
+                lv_label_set_text(change_label, "-.-%");
+                lv_obj_set_style_text_color(change_label, lv_color_hex(0x888888), 0);
+            }
         }
     }
 
