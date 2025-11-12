@@ -13,6 +13,17 @@
 
 #include "ForexDisplayManager.h"
 
+void recreate_symbol_list_async_cb(void *user_data)
+{
+    // Esegue il cast del puntatore user_data all'istanza della classe
+    ForexExample::ForexDisplayManager *self = (ForexExample::ForexDisplayManager *)user_data;
+    if (self)
+    {
+        // Chiama il metodo membro effettivo
+        self->recreateSymbolList();
+    }
+}
+
 namespace ForexExample
 {
 
@@ -52,6 +63,7 @@ namespace ForexExample
         // Create all screens
         createLoadingScreen();
         createConfigNeededScreen();
+        createConfigSavedScreen();
         createSymbolListScreen();
         createSymbolDetailScreen();
 
@@ -73,31 +85,23 @@ namespace ForexExample
     // MAIN UPDATE LOOP
     // ============================================================================
 
-    // void ForexDisplayManager::update()
-    // {
-    //     // ONLY consume custom Forex events from Core 0
-    //     // SDK events (encoder, WiFi, etc) are handled by ForexApp on Core 0
-    //     CloudMouse::Event event;
-    //     while (CloudMouse::EventBus::instance().receiveFromMain(event, 0))
-    //     {
-    //         Serial.println("DISPLAY MANAGER - EVENT RECEIVED");
-    //         // All events we receive here are custom Forex events
-    //         // They come with type >= 100 offset (see ForexEvents.h)
-    //         if (static_cast<int>(event.type) >= 100)
-    //         {
-    //             ForexEventData forexEvent;
-    //             forexEvent.type = static_cast<ForexEventType>(static_cast<int>(event.type) - 100);
-    //             forexEvent.value = event.value;
-    //             strncpy(forexEvent.stringData, event.stringData, sizeof(forexEvent.stringData) - 1);
-    //             forexEvent.price = event.value;
-
-    //             processForexEvent(forexEvent);
-    //         }
-    //     }
-    // }
-
     void ForexDisplayManager::processForexEvent(const ForexEventData &event)
     {
+        Serial.println("------------------------------------------------------");
+        Serial.println("|    RECEIVING FROM APP ------- APP - UI callback    |");
+        Serial.println("------------------------------------------------------");
+        Serial.println("");
+        Serial.println("------------------------------------------------------");
+        Serial.println("");
+        Serial.printf("%d", event.type);
+        Serial.println("");
+        Serial.println("------------------------------------------------------");
+
+        if (isListRecreating)
+        {
+            return;
+        }
+
         switch (event.type)
         {
         case ForexEventType::FOREX_CONFIG_NEEDED:
@@ -108,6 +112,15 @@ namespace ForexExample
             showScreen(ForexScreen::SYMBOL_LIST);
             break;
 
+        case ForexEventType::FOREX_CONFIG_UPDATED:
+
+            showScreen(ForexScreen::CONFIG_SAVED);
+            delay(10);
+
+            scheduleRecreateSymbolList();
+
+            break;
+
         case ForexEventType::FOREX_DATA_UPDATED:
         {
             String symbol = event.stringData;
@@ -115,17 +128,14 @@ namespace ForexExample
             {
                 if (symbolData[i].symbol == symbol)
                 {
-                    // ✅ Update ALL fields from event
-                    symbolData[i].price = event.price;
-                    symbolData[i].open = event.open;
-                    symbolData[i].high = event.high;
-                    symbolData[i].low = event.low;
-                    symbolData[i].previousClose = event.previousClose;
-                    symbolData[i].changePercent = event.changePercent;
-                    symbolData[i].dataValid = true;
+                    CachedSymbolData cached = preferences.getCachedData(symbol);
 
-                    // ❌ NON serve più ricaricare dalla cache, ce li abbiamo già!
-                    // CachedSymbolData cached = preferences.getCachedData(symbol);
+                    symbolData[i].price = cached.price;
+                    symbolData[i].open = cached.open;
+                    symbolData[i].high = cached.high;
+                    symbolData[i].low = cached.low;
+                    symbolData[i].previousClose = cached.previousClose;
+                    symbolData[i].changePercent = cached.changePercent;
 
                     updateListItem(i, symbolData[i]);
 
@@ -133,6 +143,10 @@ namespace ForexExample
                         selectedSymbolIndex == i)
                     {
                         updateSymbolDetail(symbolData[i]);
+                    }
+                    else
+                    {
+                        showScreen(ForexScreen::SYMBOL_LIST);
                     }
 
                     break;
@@ -372,6 +386,202 @@ namespace ForexExample
         Serial.printf("✅ SYMBOL_LIST screen created with %d symbols\n", symbolCount);
     }
 
+    void ForexDisplayManager::recreateSymbolList()
+    {
+        // 1. Check di sicurezza (già implementato)
+        if (!list_symbols || !encoder_group)
+        {
+            APP_LOGGER("❌ CRITICAL: list_symbols or encoder_group is NULL. Skipping.");
+            isListRecreating = false;
+            return;
+        }
+
+        // 2. Protezione dal focus e animazioni (già implementato)
+        if (screen_symbol_list)
+        {
+            lv_group_focus_obj(screen_symbol_list);
+        }
+        lv_anim_del(list_symbols, NULL);
+
+        APP_LOGGER("🔄 Updating symbol list with diffing approach...");
+
+        // Carica i NUOVI simboli dalle preferenze
+        String newSymbols[MAX_SYMBOLS];
+        int newSymbolCount = preferences.getSymbols(newSymbols);
+
+        // Salva il vecchio conteggio per capire quanti oggetti dobbiamo eliminare
+        int oldSymbolCount = symbolCount;
+        symbolCount = newSymbolCount; // Aggiorna il conteggio globale subito
+
+        // --- FASE 1: AGGIORNA E RIMUOVI GLI ECCESSI ---
+
+        // Itera sul vecchio conteggio per aggiornare gli elementi esistenti o eliminarli.
+        for (int i = 0; i < oldSymbolCount; i++)
+        {
+            lv_obj_t *item = list_items[i];
+
+            if (i < newSymbolCount)
+            {
+                // Caso A: L'oggetto ESISTE ANCORA nella nuova lista (o ne prende il posto)
+
+                // 1. Aggiorna i dati nel cache locale
+                symbolData[i].symbol = newSymbols[i];
+                CachedSymbolData cached = preferences.getCachedData(newSymbols[i]);
+                if (cached.isValid())
+                {
+                    symbolData[i].price = cached.price;
+                    symbolData[i].changePercent = cached.changePercent;
+                    // ... (altri dati)
+                    symbolData[i].dataValid = true;
+                }
+                else
+                {
+                    symbolData[i].dataValid = false;
+                }
+
+                // 2. Aggiorna i label dell'oggetto LVGL esistente
+                // Nota: Se il simbolo è cambiato (es. da EURUSD a GBPJPY),
+                // devi anche aggiornare il label del nome del simbolo (il primo child).
+                lv_label_set_text(lv_obj_get_child(item, 0), symbolData[i].symbol.c_str());
+                updateListItem(i, symbolData[i]); // Aggiorna prezzo e change %
+            }
+            else
+            {
+                // Caso B: L'oggetto è in ECCESSO (i >= newSymbolCount). Eliminalo.
+                if (item)
+                {
+                    APP_LOGGER("🗑️ Deleting excess symbol item.");
+
+                    // ⭐ NUOVA AZIONE CRITICA A: Sposta il focus del gruppo se l'oggetto è focalizzato
+                    if (lv_group_get_focused(encoder_group) == item)
+                    {
+                        // Sposta il focus del gruppo su un oggetto sicuro (il contenitore padre)
+                        lv_group_focus_obj(list_symbols);
+                        // Oppure: lv_group_focus_next(encoder_group); // Meno sicuro
+                    }
+
+                    // ⭐ AZIONE CRITICA B: Rimuovi Event Handler (già provato, ma lasciamolo)
+                    lv_obj_remove_event_cb(item, nullptr);
+
+                    // Rimuovi l'oggetto dal gruppo
+                    lv_group_remove_obj(item);
+
+                    // ⭐ AZIONE CRITICA C: Rendi l'oggetto non disegnabile
+                    // lv_obj_add_flag(item, LV_OBJ_FLAG_HIDDEN);
+                    // A volte aiuta a stabilizzare prima della distruzione.
+
+                    lv_obj_del(item);        // Elimina l'oggetto e libera la memoria
+                    list_items[i] = nullptr; // Resetta il nostro puntatore locale
+                }
+            }
+        }
+
+        // --- FASE 2: CREA I NUOVI (Se newSymbolCount > oldSymbolCount) ---
+        for (int i = oldSymbolCount; i < newSymbolCount; i++)
+        {
+            Serial.printf("➕ Creating new symbol item %d", i);
+
+            // 1. Prepara i dati
+            symbolData[i].symbol = newSymbols[i];
+
+            // Carica cached data
+            CachedSymbolData cached = preferences.getCachedData(newSymbols[i]);
+            if (cached.isValid())
+            {
+                symbolData[i].price = cached.price;
+                symbolData[i].open = cached.open;
+                symbolData[i].high = cached.high;
+                symbolData[i].low = cached.low;
+                symbolData[i].previousClose = cached.previousClose;
+                symbolData[i].changePercent = cached.changePercent;
+                symbolData[i].dataValid = true;
+            }
+            else
+            {
+                symbolData[i].dataValid = false;
+            }
+
+            // 2. Crea item container
+            lv_obj_t *item = lv_obj_create(list_symbols);
+            lv_obj_set_size(item, LV_PCT(100), 60);
+
+            // ✅ TUTTI gli stili (copia da createSymbolListScreen)
+            lv_obj_set_style_bg_color(item, lv_color_hex(0x2a2a2a), 0);
+            lv_obj_set_style_border_width(item, 1, 0);
+            lv_obj_set_style_border_color(item, lv_color_hex(0x3a3a3a), 0);
+            lv_obj_set_style_radius(item, 8, 0);
+            lv_obj_set_style_pad_all(item, 10, 0);
+
+            lv_obj_set_style_bg_color(item, lv_color_hex(0x667eea), LV_STATE_FOCUSED);
+            lv_obj_set_style_border_color(item, lv_color_hex(0x8899ff), LV_STATE_FOCUSED);
+            lv_obj_set_style_border_width(item, 2, LV_STATE_FOCUSED);
+
+            lv_obj_add_flag(item, LV_OBJ_FLAG_CLICKABLE);
+            lv_obj_clear_flag(item, LV_OBJ_FLAG_SCROLLABLE);
+
+            // 3. ✅ Crea TUTTI i label con styling completo
+
+            // Symbol name (left)
+            lv_obj_t *sym_label = lv_label_create(item);
+            lv_label_set_text(sym_label, symbolData[i].symbol.c_str());
+            lv_obj_set_style_text_font(sym_label, &lv_font_montserrat_18, 0);
+            lv_obj_set_style_text_color(sym_label, lv_color_hex(0xffffff), 0);
+            lv_obj_align(sym_label, LV_ALIGN_LEFT_MID, 0, 0);
+
+            // Price (center)
+            lv_obj_t *price_label = lv_label_create(item);
+            if (symbolData[i].dataValid)
+            {
+                lv_label_set_text_fmt(price_label, "%.2f", symbolData[i].price);
+            }
+            else
+            {
+                lv_label_set_text(price_label, "---");
+            }
+            lv_obj_set_style_text_font(price_label, &lv_font_montserrat_16, 0);
+            lv_obj_set_style_text_color(price_label, lv_color_hex(0xcccccc), 0);
+            lv_obj_align(price_label, LV_ALIGN_CENTER, 0, 0);
+
+            // Change % (right)
+            lv_obj_t *change_label = lv_label_create(item);
+            if (symbolData[i].dataValid)
+            {
+                lv_label_set_text_fmt(change_label, "%.2f%%", symbolData[i].changePercent);
+                lv_obj_set_style_text_color(change_label, getChangeColor(symbolData[i].changePercent), 0);
+            }
+            else
+            {
+                lv_label_set_text(change_label, "-.-%");
+                lv_obj_set_style_text_color(change_label, lv_color_hex(0x888888), 0);
+            }
+            lv_obj_set_style_text_font(change_label, &lv_font_montserrat_14, 0);
+            lv_obj_align(change_label, LV_ALIGN_RIGHT_MID, 0, 0);
+
+            // 4. Salva nel cache e aggiungi al gruppo
+            list_items[i] = item;
+            lv_group_add_obj(encoder_group, item);
+        }
+
+        // --- FASE 3: PULIZIA FINALE ---
+
+        // Rimuovi l'amicizia del 'wrap' se il conteggio è basso (già nel codice originale)
+        if (newSymbolCount > 0)
+        {
+            lv_group_set_wrap(encoder_group, false);
+        }
+        else
+        {
+            // Opzionale: se la lista è vuota, assicurati che il gruppo non abbia il focus
+            lv_group_focus_obj(nullptr);
+        }
+
+        Serial.printf("✅ Symbol list updated: New count is %d", newSymbolCount);
+
+        // Resetta il flag
+        isListRecreating = false;
+        showScreen(ForexScreen::SYMBOL_LIST);
+    }
+
     void ForexDisplayManager::createSymbolDetailScreen()
     {
         screen_symbol_detail = lv_obj_create(NULL);
@@ -452,6 +662,26 @@ namespace ForexExample
         Serial.println("✅ LOADING screen created");
     }
 
+    void ForexDisplayManager::createConfigSavedScreen()
+    {
+        screen_config_saved = lv_obj_create(NULL);
+        lv_obj_set_style_bg_color(screen_config_saved, lv_color_hex(0x1a1a1a), 0);
+
+        // Spinner
+        spinner_config_saved = lv_spinner_create(screen_config_saved);
+        lv_obj_set_size(spinner_config_saved, 80, 80);
+        lv_obj_center(spinner_config_saved);
+        lv_obj_set_style_arc_color(spinner_config_saved, lv_color_hex(0x667eea), LV_PART_INDICATOR);
+
+        // Label
+        label_config_saved = lv_label_create(screen_config_saved);
+        lv_label_set_text(label_config_saved, "Config saved, updating...");
+        lv_obj_set_style_text_color(label_config_saved, lv_color_hex(0xcccccc), 0);
+        lv_obj_align(label_config_saved, LV_ALIGN_CENTER, 0, 80);
+
+        Serial.println("✅ CONFIG_SAVED screen created");
+    }
+
     // ============================================================================
     // SCREEN MANAGEMENT
     // ============================================================================
@@ -467,6 +697,11 @@ namespace ForexExample
         case ForexScreen::CONFIG_NEEDED:
             target_screen = screen_config_needed;
             Serial.println("📺 Showing CONFIG_NEEDED screen");
+            break;
+
+        case ForexScreen::CONFIG_SAVED:
+            target_screen = screen_config_saved;
+            Serial.println("📺 Showing CONFIG_SAVED screen");
             break;
 
         case ForexScreen::SYMBOL_LIST:
@@ -691,6 +926,15 @@ namespace ForexExample
             // Scroll to view the focused object (outside rendering context)
             lv_obj_scroll_to_view(focused, LV_ANIM_ON);
         }
+    }
+
+    void ForexDisplayManager::scheduleRecreateSymbolList()
+    {
+        APP_LOGGER("✅ Scheduling safe symbol list recreation via lv_async_call...");
+        // lv_async_call pianifica l'esecuzione della callback nel prossimo
+        // ciclo idle di LVGL. Passiamo 'this' come user_data.
+        isListRecreating = true;
+        lv_async_call(recreate_symbol_list_async_cb, this);
     }
 
 } // namespace ForexExample

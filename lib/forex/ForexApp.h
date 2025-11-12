@@ -84,7 +84,9 @@ namespace ForexExample
         // Input events (forwarded from SDK)
         FOREX_ENCODER_ROTATION = 40,
         FOREX_ENCODER_CLICK = 41,
-        FOREX_ENCODER_LONG_PRESS = 42
+        FOREX_ENCODER_LONG_PRESS = 42,
+
+        FOREX_CONFIG_UPDATED = 50,
     };
 
     /**

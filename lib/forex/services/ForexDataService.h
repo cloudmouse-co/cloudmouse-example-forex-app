@@ -47,10 +47,6 @@
 #include "../ForexApp.h"
 
 namespace ForexExample {
-    class ForexDisplayManager;  // ← Solo dichiarazione, non definizione!
-}
-
-namespace ForexExample {
 
     /**
      * Market data for a single symbol
@@ -97,7 +93,7 @@ namespace ForexExample {
          * 
          * @param prefs Reference to preferences service for config and cache
          */
-        ForexDataService(ForexPreferences& prefs, ForexDisplayManager* display);
+        ForexDataService(ForexPreferences& prefs);
         ~ForexDataService();
         
         /**
@@ -173,7 +169,6 @@ namespace ForexExample {
         
     private:
         ForexPreferences& preferences;
-        ForexDisplayManager* displayManager;
         HTTPClient httpClient;
         
         // Rate limiting
@@ -246,21 +241,12 @@ namespace ForexExample {
         void handleApiSuccess();
         
         /**
-         * notify Display Manager of data update
+         * send event intto App event loop to notify ForexApp orchestrator
          * 
-         * @param symbol
-         * @param price
-         * @param high
-         * @param low
-         * @param previousClose
-         * @param changePercent
-         * @param timestamp
-         * 
+         * @param eventData
          */
-        void notifyDisplayManager(const String& symbol, float price, float open, 
-                         float high, float low, float previousClose,
-                         float changePercent, uint32_t timestamp);
-        
+        void emitEvent(const ForexEventData &eventData);
+
         /**
          * Calculate percentage change
          * 

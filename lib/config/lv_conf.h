@@ -1,7 +1,7 @@
 #ifndef LV_CONF_H
 #define LV_CONF_H
 
-#define LV_MEM_SIZE (56U * 1024U)
+#define LV_MEM_SIZE (64U * 1024U)
 #define LV_USE_PSRAM 1
 
 #define LV_COLOR_DEPTH 16

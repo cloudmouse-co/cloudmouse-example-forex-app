@@ -5,21 +5,21 @@
  */
 
 #include "ForexDataService.h"
-#include "../ui/ForexDisplayManager.h"
 
 
 namespace ForexExample
 {
 
     // TwelveData API base URL
-    const char *ForexDataService::API_BASE_URL = "https://api.twelvedata.com";
+    // const char *ForexDataService::API_BASE_URL = "https://api.twelvedata.com";
+    const char *ForexDataService::API_BASE_URL = "http://192.168.1.129:3000";
 
     // ============================================================================
     // CONSTRUCTOR & INITIALIZATION
     // ============================================================================
 
-    ForexDataService::ForexDataService(ForexPreferences &prefs, ForexDisplayManager *display)
-        : preferences(prefs), displayManager(display), rateLimitRemaining(800) // Conservative estimate
+    ForexDataService::ForexDataService(ForexPreferences &prefs)
+        : preferences(prefs), rateLimitRemaining(800) // Conservative estimate
           ,
           rateLimitTotal(800), rateLimitResetTime(0), circuitState(CircuitState::CLOSED), consecutiveErrors(0), circuitOpenedAt(0)
     {
@@ -104,9 +104,8 @@ namespace ForexExample
                     data.changePercent,
                     data.timestamp);
 
-                // Notify display
-                notifyDisplayManager(
-                    symbols[i],
+                ForexEventData evt = ForexEventData::dataUpdated(
+                    symbols[i].c_str(),
                     data.price,
                     data.open,
                     data.high,
@@ -114,6 +113,8 @@ namespace ForexExample
                     data.previousClose,
                     data.changePercent,
                     data.timestamp);
+
+                emitEvent(evt);
 
                 Serial.printf("  ✅ %s: $%.2f (%.2f%%)\n",
                               symbols[i].c_str(),
@@ -127,7 +128,7 @@ namespace ForexExample
             }
 
             // Small delay between requests to be nice to the API
-            delay(500);
+            delay(100);
         }
 
         if (allSuccess)
@@ -302,8 +303,8 @@ namespace ForexExample
             {
                 ForexEventData evt;
                 evt.type = ForexEventType::FOREX_API_RATE_LIMIT;
-                displayManager->processForexEvent(evt);
-                // emitEvent(evt);
+                // displayManager->processForexEvent(evt);
+                emitEvent(evt);
             }
 
             return false;
@@ -400,7 +401,8 @@ namespace ForexExample
 
         // Emit error event
         ForexEventData evt = ForexEventData::apiError(errorMessage.c_str(), errorCode);
-        displayManager->processForexEvent(evt);
+        emitEvent(evt);
+        // displayManager->processForexEvent(evt);
     }
 
     void ForexDataService::handleApiSuccess()
@@ -450,28 +452,16 @@ namespace ForexExample
         return ((current - previous) / previous) * 100.0f;
     }
 
-    void ForexDataService::notifyDisplayManager(const String &symbol, float price,
-                                                float open, float high, float low,
-                                                float previousClose, float changePercent,
-                                                uint32_t timestamp)
-    {
-        if (!displayManager)
-            return;
+    void ForexDataService::emitEvent(const ForexEventData &eventData) {
 
-        // ✅ NOW with ALL OHLC data
-        ForexEventData evt = ForexEventData::dataUpdated(
-            symbol.c_str(),
-            price,
-            open,
-            high,
-            low,
-            previousClose,
-            changePercent,
-            timestamp);
+        // Convert to SDK Event
+        CloudMouse::Event sdkEvent;
+        sdkEvent.type = static_cast<CloudMouse::EventType>(100 + static_cast<int>(eventData.type));
+        sdkEvent.value = eventData.value;
+        strncpy(sdkEvent.stringData, eventData.stringData, sizeof(sdkEvent.stringData) - 1);
 
-        displayManager->processForexEvent(evt);
-        Serial.printf("📤 Notified DisplayManager: %s = $%.2f (%.2f%%) [O:%.2f H:%.2f L:%.2f]\n",
-                      symbol.c_str(), price, changePercent, open, high, low);
+        // Send to main Core (to loop to ForexApp)
+        CloudMouse::EventBus::instance().sendToApp(sdkEvent);
     }
 
 } // namespace ForexExample
