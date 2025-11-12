@@ -100,10 +100,10 @@ namespace ForexExample
 
         // Step 3: Process ALL SDK events (SINGLE CONSUMPTION POINT)
         CloudMouse::Event sdkEvent;
-        while (CloudMouse::EventBus::instance().receiveFromUI(sdkEvent, 0))
+        while (CloudMouse::EventBus::instance().receiveFromCore(sdkEvent, 0))
         {
             APP_LOGGER("-------------------------------------------------------");
-            APP_LOGGER("RECEIVING FROM UI");
+            APP_LOGGER("RECEIVING FROM CORE ---- CORE - APP bus");
             Serial.printf("%d", (int)sdkEvent.type);
             APP_LOGGER("-------------------------------------------------------");
 

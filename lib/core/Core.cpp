@@ -217,7 +217,7 @@ namespace CloudMouse
         EventBus::instance().sendToUI(helloEvent);
 
         Event wifiConnected(EventType::WIFI_CONNECTED);
-        EventBus::instance().sendToMain(wifiConnected);
+        EventBus::instance().sendToApp(wifiConnected);
 
         setState(SystemState::READY);
       }
@@ -305,10 +305,6 @@ namespace CloudMouse
     while (EventBus::instance().receiveFromUI(event, 0))
     {
       eventsProcessed++;
-
-      if (forexApp) {
-        forexApp->processSDKEvent(event);
-      }
       
       switch (event.type)
       {
@@ -341,12 +337,9 @@ namespace CloudMouse
       ledManager->activate();
     }
 
-    // if (forexApp) {
-    //     forexApp->processSDKEvent(event);
-    // }
-
     // Forward to UI system
     EventBus::instance().sendToUI(event);
+    EventBus::instance().sendToApp(event);
 
   }
 
@@ -363,12 +356,9 @@ namespace CloudMouse
     // Audio feedback
     SimpleBuzzer::buzz();
 
-    // if (forexApp) {
-    //     forexApp->processSDKEvent(event);
-    // }
-
     // Forward to UI system
     EventBus::instance().sendToUI(event);
+    EventBus::instance().sendToApp(event);
   }
 
   void Core::handleEncoderLongPress(const Event &event)
@@ -384,12 +374,9 @@ namespace CloudMouse
     // Audio feedback: error pattern
     SimpleBuzzer::error();
     
-    // if (forexApp) {
-    //     forexApp->processSDKEvent(event);
-    // }
-    
     // Forward to UI system
     EventBus::instance().sendToUI(event);
+    EventBus::instance().sendToApp(event);
   }
 
   // ============================================================================
