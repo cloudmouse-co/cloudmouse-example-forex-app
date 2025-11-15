@@ -53,9 +53,11 @@ namespace CloudMouse::Hardware
         lv_init();
         lvgl_ticker.attach_ms(4, lv_tick_task);
 
-        const size_t bufSize = 480 * 32; 
-        buf1 = (lv_color_t *)ps_malloc(sizeof(lv_color_t) * bufSize);
-        buf2 = (lv_color_t *)ps_malloc(sizeof(lv_color_t) * bufSize);
+        const size_t bufSize = 480 * 320 / 12; 
+        // buf1 = (lv_color_t *)ps_malloc(sizeof(lv_color_t) * bufSize);
+        // buf2 = (lv_color_t *)ps_malloc(sizeof(lv_color_t) * bufSize);
+        buf1 = (lv_color_t *)heap_caps_malloc(sizeof(lv_color_t) * bufSize, MALLOC_CAP_DMA | MALLOC_CAP_INTERNAL);
+        buf2 = (lv_color_t *)heap_caps_malloc(sizeof(lv_color_t) * bufSize, MALLOC_CAP_DMA | MALLOC_CAP_INTERNAL);
 
         if (!buf1 || !buf2)
         {
@@ -82,7 +84,7 @@ namespace CloudMouse::Hardware
         lv_display_set_flush_cb(disp, lvgl_flush_cb);
         lv_display_set_buffers(disp, buf1, buf2, bufSize * sizeof(lv_color_t), LV_DISPLAY_RENDER_MODE_PARTIAL);
         lv_display_set_user_data(disp, this);
-
+        
         // LVGL input (Encoder) driver init (v9)
         indev = lv_indev_create();
         if (indev == NULL) {
@@ -101,7 +103,7 @@ namespace CloudMouse::Hardware
         // Create LVGL UI 
         Serial.println("🎨 Creating UI LVGL...");
         createUi();
-
+        
         initialized = true;
         Serial.printf("✅ DisplayManager with LVGL v9 succesfully initialized!\n");
     }
@@ -111,7 +113,11 @@ namespace CloudMouse::Hardware
         Event event;
         while (EventBus::instance().receiveFromMain(event, 0))
         {
-            Serial.println("DISPLAY MANAGER RECEIVE FROM MAIN");
+            // Serial.println("DISPLAY MANAGER RECEIVE FROM MAIN");
+            // Serial.println("");
+            // Serial.printf("%d", event.type);
+            // Serial.println("");
+            // Serial.println("----------------------------");
             processEvent(event);
         }
         lv_timer_handler();
@@ -191,6 +197,14 @@ namespace CloudMouse::Hardware
 
     void DisplayManager::processEvent(const Event &event)
     {
+        // First priority: forward event to app callback if registered
+        // This allows ForexDisplayManager to intercept and handle events
+        if (appCallback) {
+            appCallback(event);
+        }
+        
+        // Then handle SDK system events
+        // SDK events still work normally for system-level functionality
         switch (event.type)
         {
         case EventType::DISPLAY_WAKE_UP:

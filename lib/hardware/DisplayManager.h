@@ -44,6 +44,8 @@ namespace CloudMouse::Hardware
 {
     using namespace CloudMouse::Utils;
 
+    typedef void (*AppDisplayCallback)(const CloudMouse::Event& event);
+
     class DisplayManager
     {
     public:
@@ -54,6 +56,10 @@ namespace CloudMouse::Hardware
         void update();
         void processEvent(const CloudMouse::Event &event);
         
+        void registerAppCallback(AppDisplayCallback callback) {
+            appCallback = callback;
+        }
+
         bool isReady() const { return initialized; }
         int getWidth() const { return 480; }
         int getHeight() const { return 320; }
@@ -107,6 +113,8 @@ namespace CloudMouse::Hardware
         lv_obj_t *label_ap_connected_url;
         lv_obj_t *label_ap_mode_ssid;
         lv_obj_t *label_ap_mode_pass;
+
+        AppDisplayCallback appCallback = nullptr;
 
         // ========================================================================
         // STATE MANAGEMENT VARIABLES
