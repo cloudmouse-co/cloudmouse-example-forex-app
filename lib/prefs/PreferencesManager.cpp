@@ -85,7 +85,7 @@ namespace CloudMouse::Prefs
     // BATCH OPERATIONS
     // ============================================================================
 
-    bool PreferencesManager::beginBatch(const char *namespaceName, bool readOnly)
+    bool PreferencesManager::beginBatch(bool readOnly)
     {
         if (batchOpen)
         {
@@ -93,11 +93,7 @@ namespace CloudMouse::Prefs
             endBatch();
         }
 
-        batchOpen = preferences.begin(namespaceName, readOnly);
-        if (batchOpen)
-        {
-            currentNamespace = namespaceName;
-        }
+        batchOpen = preferences.begin(space, readOnly);
 
         return batchOpen;
     }
@@ -111,7 +107,6 @@ namespace CloudMouse::Prefs
 
         preferences.end();
         batchOpen = false;
-        currentNamespace = "";
     }
 
     bool PreferencesManager::putString(const char *key, const String &value)
