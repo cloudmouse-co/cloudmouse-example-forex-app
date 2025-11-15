@@ -39,6 +39,7 @@ namespace ForexExample
         webServer->on("/forex/status", HTTP_GET, handleStatusRequest);
         webServer->on("/forex/test", HTTP_POST, handleTestApi);
         webServer->on("/forex/clear", HTTP_POST, handleClearConfig);
+        // webServer->on("/forex/test", HTTP_POST, handleTestRequest);
 
         webServer->on("/", HTTP_GET, []()
                       {
@@ -126,6 +127,15 @@ namespace ForexExample
                 instance->sendJsonResponse(false, "Invalid symbol: " + symbols[i]);
                 return;
             }
+
+            // Save thresholds
+            String gainParam = "gain_" + symbols[i];
+            String lossParam = "loss_" + symbols[i];
+
+            float capGain = instance->webServer->arg(gainParam).toFloat();
+            float capLoss = instance->webServer->arg(lossParam).toFloat();
+
+            instance->preferences.setAlertThresholds(symbols[i], capGain, capLoss);
         }
 
         instance->preferences.setApiKey(apiKey);
@@ -256,6 +266,19 @@ namespace ForexExample
             html += "<div class=\"symbol-row\">";
             html += "<input type=\"text\" class=\"symbol-input\" placeholder=\"SYMBOL\" value=\"" + symbols[i] + "\" maxlength=\"10\">";
             html += "<button onclick=\"removeSymbol(this)\" class=\"btn-remove\">X</button>";
+
+            html += "<div class='threshold-group'>";
+            html += "<label>Gain Alert (%):</label>";
+            html += "<input type='number' class='gain-input' "; // ← CAMBIA class da 'symbol-input' a 'gain-input'
+            html += "value='" + String(preferences.getCapGain(symbols[i]), 1) + "' ";
+            html += "step='0.1' min='0' max='100'>";
+
+            html += "<label>Loss Alert (%):</label>";
+            html += "<input type='number' class='loss-input' "; // ← CAMBIA class da 'symbol-input' a 'loss-input'
+            html += "value='" + String(preferences.getCapLoss(symbols[i]), 1) + "' ";
+            html += "step='0.1' min='-100' max='0'>";
+            html += "</div>";
+
             html += "</div>";
         }
 
@@ -264,6 +287,15 @@ namespace ForexExample
             html += "<div class=\"symbol-row\">";
             html += "<input type=\"text\" class=\"symbol-input\" placeholder=\"SYMBOL\" maxlength=\"10\">";
             html += "<button onclick=\"removeSymbol(this)\" class=\"btn-remove\">X</button>";
+
+            // Aggiungi threshold anche per la riga vuota iniziale
+            html += "<div class='threshold-group'>";
+            html += "<label>Gain Alert (%):</label>";
+            html += "<input type='number' class='gain-input' value='5.0' step='0.1' min='0' max='100'>";
+            html += "<label>Loss Alert (%):</label>";
+            html += "<input type='number' class='loss-input' value='-5.0' step='0.1' min='-100' max='0'>";
+            html += "</div>";
+
             html += "</div>";
         }
 
@@ -299,10 +331,15 @@ namespace ForexExample
                "h2{color:#333;font-size:20px;margin-bottom:10px}"
                ".help{color:#666;font-size:14px;margin-bottom:15px}"
                ".help a{color:#667eea;text-decoration:none}"
-               "input[type=\"text\"]{width:100%;padding:12px;border:2px solid #e0e0e0;border-radius:8px;font-size:16px;margin-bottom:10px;transition:border-color 0.3s}"
-               "input[type=\"text\"]:focus{outline:none;border-color:#667eea}"
-               ".symbol-row{display:flex;gap:10px;margin-bottom:10px}"
+               "input[type=\"text\"],input[type=\"number\"]{width:100%;padding:12px;border:2px solid #e0e0e0;border-radius:8px;font-size:16px;margin-bottom:10px;transition:border-color 0.3s}"
+               "input[type=\"text\"]:focus,input[type=\"number\"]:focus{outline:none;border-color:#667eea}"
+               ".symbol-row{display:flex;flex-direction:column;gap:10px;margin-bottom:15px;padding:15px;background:#f8f9fa;border-radius:8px}"
                ".symbol-input{flex:1;margin-bottom:0;text-transform:uppercase}"
+               ".threshold-group{display:grid;grid-template-columns:auto 1fr;gap:10px;align-items:center;margin-top:10px}"
+               ".threshold-group label{font-size:14px;color:#666;font-weight:600}"
+               ".threshold-group input{margin-bottom:0}"
+               ".gain-input{border-color:#2ed573}"
+               ".loss-input{border-color:#ff4757}"
                "button{padding:12px 24px;border:none;border-radius:8px;font-size:16px;font-weight:600;cursor:pointer;transition:all 0.3s}"
                ".btn-primary{background:#667eea;color:white;width:100%}"
                ".btn-primary:hover{background:#5568d3;transform:translateY(-2px);box-shadow:0 5px 15px rgba(102,126,234,0.4)}"
@@ -310,7 +347,7 @@ namespace ForexExample
                ".btn-secondary:hover{background:#e0e0e0}"
                ".btn-danger{background:#ff4757;color:white;width:100%}"
                ".btn-danger:hover{background:#ff3838}"
-               ".btn-remove{padding:8px 12px;background:#ff4757;color:white}"
+               ".btn-remove{padding:8px 12px;background:#ff4757;color:white;align-self:flex-start}"
                ".actions{display:flex;flex-direction:column;gap:10px}"
                ".message{margin-top:20px;padding:15px;border-radius:8px;text-align:center;font-weight:600;display:none}"
                ".message.success{background:#2ed573;color:white;display:block}"
@@ -321,11 +358,11 @@ namespace ForexExample
     String ForexConfigServer::generateJS()
     {
         return "function showMessage(t,e){const s=document.getElementById('message');s.textContent=t,s.className='message '+e,setTimeout(()=>{s.style.display='none'},5e3)}"
-               "function addSymbol(){const t=document.getElementById('symbol-list'),e=t.getElementsByClassName('symbol-row');if(e.length>=10)return void showMessage('Maximum 10 symbols allowed','error');const s=document.createElement('div');s.className='symbol-row',s.innerHTML='<input type=\"text\" class=\"symbol-input\" placeholder=\"SYMBOL\" maxlength=\"10\"><button onclick=\"removeSymbol(this)\" class=\"btn-remove\">X</button>',t.appendChild(s)}"
-               "function removeSymbol(t){const e=document.getElementById('symbol-list').getElementsByClassName('symbol-row');return e.length<=1?void showMessage('At least one symbol required','error'):void t.parentElement.remove()}"
-               "async function testApiKey(){const t=document.getElementById('api_key').value.trim();if(!t)return void showMessage('Please enter an API key','error');showMessage('Testing API key...','success');try{const e=await fetch('/forex/test',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'api_key='+encodeURIComponent(t)}),s=await e.json();showMessage(s.message,s.success?'success':'error')}catch(t){showMessage('Test failed: '+t.message,'error')}}"
-               "async function saveConfig(){const t=document.getElementById('api_key').value.trim();if(!t)return void showMessage('Please enter an API key','error');const e=document.getElementsByClassName('symbol-input'),s=[];for(let t of e){const e=t.value.trim().toUpperCase();e&&s.push(e)}if(0===s.length)return void showMessage('Please add at least one symbol','error');let o='api_key='+encodeURIComponent(t);o+='&symbol_count='+s.length;for(let t=0;t<s.length;t++)o+='&symbol_'+t+'='+encodeURIComponent(s[t]);try{const t=await fetch('/forex/config',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:o}),e=await t.json();showMessage(e.message,e.success?'success':'error'),e.success&&setTimeout(()=>{location.reload()},2e3)}catch(t){showMessage('Save failed: '+t.message,'error')}}"
-               "async function clearConfig(){if(!confirm('Are you sure you want to clear all configuration?'))return;try{const t=await fetch('/forex/clear',{method:'POST'}),e=await t.json();showMessage(e.message,e.success?'success':'error'),e.success&&setTimeout(()=>{location.reload()},1500)}catch(t){showMessage('Clear failed: '+t.message,'error')}}";
+            "function addSymbol(){const t=document.getElementById('symbol-list'),e=t.getElementsByClassName('symbol-row');if(e.length>=10)return void showMessage('Maximum 10 symbols allowed','error');const s=document.createElement('div');s.className='symbol-row',s.innerHTML='<input type=\"text\" class=\"symbol-input\" placeholder=\"SYMBOL\" maxlength=\"10\"><button onclick=\"removeSymbol(this)\" class=\"btn-remove\">X</button><div class=\"threshold-group\"><label>Gain Alert (%):</label><input type=\"number\" class=\"gain-input\" value=\"5.0\" step=\"0.1\" min=\"0\" max=\"100\"><label>Loss Alert (%):</label><input type=\"number\" class=\"loss-input\" value=\"-5.0\" step=\"0.1\" min=\"-100\" max=\"0\"></div>',t.appendChild(s)}"
+            "function removeSymbol(t){const e=document.getElementById('symbol-list').getElementsByClassName('symbol-row');return e.length<=1?void showMessage('At least one symbol required','error'):void t.parentElement.remove()}"
+            "async function testApiKey(){const t=document.getElementById('api_key').value.trim();if(!t)return void showMessage('Please enter an API key','error');showMessage('Testing API key...','success');try{const e=await fetch('/forex/test',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'api_key='+encodeURIComponent(t)}),s=await e.json();showMessage(s.message,s.success?'success':'error')}catch(t){showMessage('Test failed: '+t.message,'error')}}"
+            "async function saveConfig(){const t=document.getElementById('api_key').value.trim();if(!t)return void showMessage('Please enter an API key','error');const e=document.getElementsByClassName('symbol-row'),s=[],o=[],n=[];for(let t of e){const e=t.querySelector('.symbol-input'),a=t.querySelector('.gain-input'),r=t.querySelector('.loss-input'),i=e.value.trim().toUpperCase();i&&(s.push(i),o.push(a?a.value:'5.0'),n.push(r?r.value:'-5.0'))}if(0===s.length)return void showMessage('Please add at least one symbol','error');let a='api_key='+encodeURIComponent(t);a+='&symbol_count='+s.length;for(let t=0;t<s.length;t++)a+='&symbol_'+t+'='+encodeURIComponent(s[t]),a+='&gain_'+encodeURIComponent(s[t])+'='+encodeURIComponent(o[t]),a+='&loss_'+encodeURIComponent(s[t])+'='+encodeURIComponent(n[t]);try{const t=await fetch('/forex/config',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:a}),e=await t.json();showMessage(e.message,e.success?'success':'error'),e.success&&setTimeout(()=>{location.reload()},2e3)}catch(t){showMessage('Save failed: '+t.message,'error')}}"
+            "async function clearConfig(){if(!confirm('Are you sure you want to clear all configuration?'))return;try{const t=await fetch('/forex/clear',{method:'POST'}),e=await t.json();showMessage(e.message,e.success?'success':'error'),e.success&&setTimeout(()=>{location.reload()},1500)}catch(t){showMessage('Clear failed: '+t.message,'error')}}";
     }
 
     bool ForexConfigServer::isValidApiKey(const String &apiKey)

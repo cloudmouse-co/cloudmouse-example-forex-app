@@ -208,6 +208,13 @@ namespace ForexExample
         SymbolListItem symbolData[MAX_SYMBOLS];
         int symbolCount;
 
+        struct AlertState {
+            bool hasAlert = false;
+            bool isGain = false;  // true = gain, false = loss
+        };
+
+        AlertState alertStates[MAX_SYMBOLS];  // One per symbol
+
         bool isListRecreating = false;
         bool initialized = false;
 

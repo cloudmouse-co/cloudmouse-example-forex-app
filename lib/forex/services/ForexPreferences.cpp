@@ -78,7 +78,8 @@ namespace ForexExample
         }
 
         // BATCH WRITE - open once, save all, close once
-        if (!prefsManager.beginBatch(false)) {
+        if (!prefsManager.beginBatch(false))
+        {
             Serial.println("❌ Failed to open batch for symbols save");
             return false;
         }
@@ -165,11 +166,12 @@ namespace ForexExample
         String tsKey = buildCacheKey(symbol, "ts");
 
         // BATCH WRITE - single begin/end for all operations
-        if (!prefsManager.beginBatch(false)) {
+        if (!prefsManager.beginBatch(false))
+        {
             Serial.println("❌ Failed to open batch write");
             return;
         }
-        
+
         prefsManager.putString(priceKey.c_str(), String(price, 4));
         prefsManager.putString(openKey.c_str(), String(open, 4));
         prefsManager.putString(highKey.c_str(), String(high, 4));
@@ -177,11 +179,11 @@ namespace ForexExample
         prefsManager.putString(prevKey.c_str(), String(previousClose, 4));
         prefsManager.putString(changeKey.c_str(), String(changePercent, 2));
         prefsManager.putString(tsKey.c_str(), String(timestamp));
-        
+
         prefsManager.endBatch();
 
         Serial.printf("💾 Cached %s: $%.2f (%.2f%%) @ %u\n",
-                    symbol.c_str(), price, changePercent, timestamp);
+                      symbol.c_str(), price, changePercent, timestamp);
     }
 
     CachedSymbolData ForexPreferences::getCachedData(const String &symbol)
@@ -199,7 +201,8 @@ namespace ForexExample
         String tsKey = buildCacheKey(symbol, "ts");
 
         // BATCH READ - single begin/end for all operations
-        if (!prefsManager.beginBatch(true)) {  // true = read-only
+        if (!prefsManager.beginBatch(true))
+        { // true = read-only
             Serial.println("❌ Failed to open batch read");
             data.timestamp = 0;
             return data;
@@ -212,7 +215,7 @@ namespace ForexExample
         String prevStr = prefsManager.getString(prevKey.c_str(), "");
         String changeStr = prefsManager.getString(changeKey.c_str(), "");
         String tsStr = prefsManager.getString(tsKey.c_str(), "");
-        
+
         prefsManager.endBatch();
 
         if (!priceStr.isEmpty() && !tsStr.isEmpty())
@@ -244,9 +247,10 @@ namespace ForexExample
         Serial.println("🗑️ Clearing all cached symbol data...");
 
         int count = getSymbolCount();
-        
+
         // BATCH DELETE - open once, clear all, close once
-        if (!prefsManager.beginBatch(false)) {
+        if (!prefsManager.beginBatch(false))
+        {
             Serial.println("❌ Failed to open batch for cache clear");
             return;
         }
@@ -288,7 +292,8 @@ namespace ForexExample
         Serial.println("🗑️ Clearing all forex configuration...");
 
         // BATCH CLEAR ALL - open once, clear everything, close once
-        if (!prefsManager.beginBatch(false)) {
+        if (!prefsManager.beginBatch(false))
+        {
             Serial.println("❌ Failed to open batch for clearAll");
             return;
         }
@@ -352,6 +357,70 @@ namespace ForexExample
         cachedApiKey = "";
         cachedSymbolCount = -1;
         cacheValid = false;
+    }
+
+    // ============================================================================
+    // ALERT THRESHOLDS MANAGEMENT
+    // ============================================================================
+
+    void ForexPreferences::setAlertThresholds(const String &symbol, float capGain, float capLoss)
+    {
+        String gainKey = "AL_" + symbol + "_gain";
+        String lossKey = "AL_" + symbol + "_loss";
+
+        if (!prefsManager.beginBatch(false))
+        {
+            Serial.println("❌ Failed to open batch for alert thresholds");
+            return;
+        }
+
+        prefsManager.putString(gainKey.c_str(), String(capGain, 2));
+        prefsManager.putString(lossKey.c_str(), String(capLoss, 2));
+
+        prefsManager.endBatch();
+
+        Serial.printf("🔔 Alert thresholds for %s: gain=%.2f%%, loss=%.2f%%\n",
+                      symbol.c_str(), capGain, capLoss);
+    }
+
+    float ForexPreferences::getCapGain(const String &symbol)
+    {
+        String gainKey = "AL_" + symbol + "_gain";
+        String gainStr = prefsManager.get(gainKey.c_str());
+
+        // Default to +5% if not set
+        return gainStr.isEmpty() ? 5.0 : gainStr.toFloat();
+    }
+
+    float ForexPreferences::getCapLoss(const String &symbol)
+    {
+        String lossKey = "AL_" + symbol + "_loss";
+        String lossStr = prefsManager.get(lossKey.c_str());
+
+        // Default to -5% if not set
+        return lossStr.isEmpty() ? -5.0 : lossStr.toFloat();
+    }
+
+    int ForexPreferences::getAlertState(const String &symbol)
+    {
+        String stateKey = "AL_" + symbol + "_state";
+        String stateStr = prefsManager.get(stateKey.c_str());
+
+        // Default to 0 (normal)
+        return stateStr.isEmpty() ? 0 : stateStr.toInt();
+    }
+
+    void ForexPreferences::setAlertState(const String &symbol, int state)
+    {
+        String stateKey = "AL_" + symbol + "_state";
+        prefsManager.save(stateKey.c_str(), String(state));
+
+        Serial.printf("🔔 Alert state for %s: %d\n", symbol.c_str(), state);
+    }
+
+    void ForexPreferences::resetAlertState(const String &symbol)
+    {
+        setAlertState(symbol, 0);
     }
 
 } // namespace ForexExample

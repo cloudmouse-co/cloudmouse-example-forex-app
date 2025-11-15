@@ -27,7 +27,7 @@ void recreate_symbol_list_async_cb(void *user_data)
 namespace ForexExample
 {
     // Initialize static instance pointer
-    ForexDisplayManager* ForexDisplayManager::instance = nullptr;
+    ForexDisplayManager *ForexDisplayManager::instance = nullptr;
 
     // ============================================================================
     // CONSTRUCTOR & INITIALIZATION
@@ -58,8 +58,7 @@ namespace ForexExample
         // Register callback with SDK DisplayManager
         // This allows us to receive ALL events that DisplayManager processes
         CloudMouse::Core::instance().getDisplay()->registerAppCallback(
-            &ForexDisplayManager::handleDisplayCallback
-        );
+            &ForexDisplayManager::handleDisplayCallback);
 
         initialized = true;
         Serial.println("✅ ForexDisplayManager initialized and callback registered");
@@ -87,7 +86,7 @@ namespace ForexExample
         createSymbolDetailScreen();
     }
 
-    void ForexDisplayManager::onDisplayEvent(const CloudMouse::Event& event)
+    void ForexDisplayManager::onDisplayEvent(const CloudMouse::Event &event)
     {
         // Serial.println("------------------------------------------------------");
         // Serial.println("|  RECEIVING FROM DisplayManager ----- UI callback    |");
@@ -99,7 +98,8 @@ namespace ForexExample
         // Serial.println("");
         // Serial.println("------------------------------------------------------");
 
-        if (isForexEvent(event)) {
+        if (isForexEvent(event))
+        {
             processForexEvent(toForexEvent(event));
         }
 
@@ -108,7 +108,7 @@ namespace ForexExample
         case CloudMouse::EventType::ENCODER_CLICK:
             handleEncoderClick();
             break;
-        
+
         default:
             break;
         }
@@ -207,6 +207,91 @@ namespace ForexExample
         case ForexEventType::FOREX_ENCODER_CLICK:
             handleEncoderClick();
             break;
+
+        case ForexEventType::FOREX_ALERT_GAIN:
+        {
+            String symbol = event.stringData;
+            float changePercent = event.price;
+            float threshold = event.changePercent;
+
+            Serial.printf("🚀 GAIN ALERT UI: %s at %.2f%% (target: %.2f%%)",
+                          symbol.c_str(), changePercent, threshold);
+
+            // Find symbol index
+            for (int i = 0; i < symbolCount; i++)
+            {
+                if (symbolData[i].symbol == symbol)
+                {
+                    alertStates[i].hasAlert = true;
+                    alertStates[i].isGain = true;
+
+                    // Update UI
+                    updateListItem(i, symbolData[i]);
+
+                    // Audio alert
+                    CloudMouse::SimpleBuzzer::error();
+
+                    // LED alert (GREEN for gain)
+                    CloudMouse::Core::instance().getLEDManager()->flashColor(0, 255, 0, 255, 1000);
+
+                    break;
+                }
+            }
+        }
+        break;
+
+        case ForexEventType::FOREX_ALERT_LOSS:
+        {
+            String symbol = event.stringData;
+            float changePercent = event.price;
+            float threshold = event.changePercent;
+
+            Serial.printf("📉 LOSS ALERT UI: %s at %.2f%% (limit: %.2f%%)",
+                          symbol.c_str(), changePercent, threshold);
+
+            // Find symbol index
+            for (int i = 0; i < symbolCount; i++)
+            {
+                if (symbolData[i].symbol == symbol)
+                {
+                    alertStates[i].hasAlert = true;
+                    alertStates[i].isGain = false;
+
+                    // Update UI
+                    updateListItem(i, symbolData[i]);
+
+                    // Audio alert (different pattern)
+                    CloudMouse::SimpleBuzzer::error(); // Error buzz
+
+                    // LED alert (RED for loss)
+                    CloudMouse::Core::instance().getLEDManager()->flashColor(255, 0, 0, 255, 1000);
+
+                    break;
+                }
+            }
+        }
+        break;
+
+        case ForexEventType::FOREX_ALERT_CLEARED:
+        {
+            String symbol = event.stringData;
+
+            Serial.printf("✅ Alert cleared UI: %s", symbol.c_str());
+
+            // Find symbol index
+            for (int i = 0; i < symbolCount; i++)
+            {
+                if (symbolData[i].symbol == symbol)
+                {
+                    alertStates[i].hasAlert = false;
+
+                    // Update UI
+                    updateListItem(i, symbolData[i]);
+                    break;
+                }
+            }
+        }
+        break;
 
         default:
             break;
@@ -791,9 +876,36 @@ namespace ForexExample
         lv_obj_t *item = list_items[index];
 
         // Find labels in item (they are children)
+        lv_obj_t *symbol_label = lv_obj_get_child(item, 0); // First child (symbol name)
         lv_obj_t *price_label = lv_obj_get_child(item, 1);  // Second child
         lv_obj_t *change_label = lv_obj_get_child(item, 2); // Third child
 
+        // Update SYMBOL label with alert indicator and color
+        if (symbol_label)
+        {
+            String symbolText = data.symbol;
+
+            // Add bell if alert is active
+            if (alertStates[index].hasAlert)
+            {
+                symbolText += " " LV_SYMBOL_BELL;
+            }
+
+            lv_label_set_text(symbol_label, symbolText.c_str());
+
+            // Color symbol based on alert state
+            lv_color_t symbolColor = lv_color_hex(0xcccccc); // Default white/gray
+
+            if (alertStates[index].hasAlert)
+            {
+                symbolColor = alertStates[index].isGain ? lv_color_hex(0x00ff00) : // Bright green for gain
+                                  lv_color_hex(0xff0000);                          // Bright red for loss
+            }
+
+            lv_obj_set_style_text_color(symbol_label, symbolColor, 0);
+        }
+
+        // Update PRICE label
         if (price_label)
         {
             if (data.dataValid)
@@ -808,6 +920,7 @@ namespace ForexExample
             }
         }
 
+        // Update CHANGE label
         if (change_label)
         {
             if (data.dataValid)
