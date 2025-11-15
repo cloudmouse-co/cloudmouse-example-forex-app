@@ -28,6 +28,8 @@
 #include <Arduino.h>
 #include "../../../lib/prefs/PreferencesManager.h"
 
+#define FOREX_NAMESPACE "forex-app"
+
 namespace ForexExample
 {
 
