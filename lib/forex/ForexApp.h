@@ -77,9 +77,11 @@ namespace ForexExample
         FOREX_API_RATE_LIMIT = 23,
 
         // UI navigation events
-        FOREX_SHOW_LIST = 30,
-        FOREX_SHOW_DETAIL = 31,
-        FOREX_SHOW_CONFIG = 32,
+        FOREX_DISPLAY_BOOTSTRAP = 30,
+        FOREX_SHOW_LIST = 31,
+        FOREX_SHOW_DETAIL = 32,
+        FOREX_SHOW_CONFIG = 33,
+        FOREX_SHOW_LOADING = 34,
 
         // Input events (forwarded from SDK)
         FOREX_ENCODER_ROTATION = 40,
@@ -120,6 +122,13 @@ namespace ForexExample
             stringData[0] = '\0';
         }
 
+        static ForexEventData event(ForexEventType type)
+        {
+            ForexEventData evt;
+            evt.type = type;
+            return evt;
+        }
+
         // Helper constructors for common patterns
         static ForexEventData configNeeded()
         {
@@ -155,6 +164,34 @@ namespace ForexExample
         }
     };
 
+
+    // Helper to convert ForexEventType to SDK Event with offset
+    inline CloudMouse::Event toSDKEvent(const ForexEventData& forexEvent) {
+        CloudMouse::Event sdkEvent;
+        sdkEvent.type = static_cast<CloudMouse::EventType>(
+            static_cast<int>(forexEvent.type) + 100
+        );
+        sdkEvent.value = forexEvent.value;
+        strncpy(sdkEvent.stringData, forexEvent.stringData, sizeof(sdkEvent.stringData) - 1);
+        return sdkEvent;
+    }
+    
+    // Helper to check if SDK event is actually a Forex event
+    inline bool isForexEvent(const CloudMouse::Event& sdkEvent) {
+        return static_cast<int>(sdkEvent.type) >= 100;
+    }
+    
+    // Helper to convert SDK Event back to ForexEventData
+    inline ForexEventData toForexEvent(const CloudMouse::Event& sdkEvent) {
+        ForexEventData forexEvent;
+        forexEvent.type = static_cast<ForexEventType>(
+            static_cast<int>(sdkEvent.type) - 100
+        );
+        forexEvent.value = sdkEvent.value;
+        strncpy(forexEvent.stringData, sdkEvent.stringData, sizeof(forexEvent.stringData) - 1);
+        forexEvent.price = sdkEvent.value;
+        return forexEvent;
+    }
     /**
      * Application State Machine
      *
@@ -163,12 +200,13 @@ namespace ForexExample
      */
     enum class ForexAppState
     {
-        INITIALIZING,   // App starting up
-        CONFIG_NEEDED,  // Waiting for user configuration
-        READY,          // Configured, waiting to start
-        POLLING_ACTIVE, // Market open, actively polling
-        POLLING_PAUSED, // Market closed, using cached data
-        ERROR           // Unrecoverable error state
+        INITIALIZING,      // App starting up
+        WIFI_READY,        // WiFi connected, checking config
+        CONFIG_NEEDED,     // No API key or symbols configured
+        READY,             // Configuration valid, ready to start
+        POLLING_ACTIVE,    // Market open, actively polling
+        POLLING_PAUSED,    // Market closed, using cache
+        ERROR              // Fatal error state
     };
 
     /**

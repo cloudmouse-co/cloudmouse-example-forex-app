@@ -26,6 +26,8 @@ void recreate_symbol_list_async_cb(void *user_data)
 
 namespace ForexExample
 {
+    // Initialize static instance pointer
+    ForexDisplayManager* ForexDisplayManager::instance = nullptr;
 
     // ============================================================================
     // CONSTRUCTOR & INITIALIZATION
@@ -50,6 +52,23 @@ namespace ForexExample
     {
         Serial.println("🎨 Initializing ForexDisplayManager...");
 
+        // Set singleton instance for static callback access
+        instance = this;
+
+        // Register callback with SDK DisplayManager
+        // This allows us to receive ALL events that DisplayManager processes
+        CloudMouse::Core::instance().getDisplay()->registerAppCallback(
+            &ForexDisplayManager::handleDisplayCallback
+        );
+
+        initialized = true;
+        Serial.println("✅ ForexDisplayManager initialized and callback registered");
+
+        return true;
+    }
+
+    void ForexDisplayManager::bootstrap()
+    {
         encoder_group = lv_group_get_default();
         if (!encoder_group)
         {
@@ -66,19 +85,33 @@ namespace ForexExample
         createConfigSavedScreen();
         createSymbolListScreen();
         createSymbolDetailScreen();
+    }
 
-        // // Determine initial screen based on configuration
-        // if (preferences.hasApiKey() && preferences.getSymbolCount() > 0)
-        // {
-        //     showScreen(ForexScreen::LOADING);
-        // }
-        // else
-        // {
-        //     showScreen(ForexScreen::CONFIG_NEEDED);
-        // }
+    void ForexDisplayManager::onDisplayEvent(const CloudMouse::Event& event)
+    {
+        // Serial.println("------------------------------------------------------");
+        // Serial.println("|  RECEIVING FROM DisplayManager ----- UI callback    |");
+        // Serial.println("------------------------------------------------------");
+        // Serial.println("");
+        // Serial.println("------------------------------------------------------");
+        // Serial.println("");
+        // Serial.printf("%d", event.type);
+        // Serial.println("");
+        // Serial.println("------------------------------------------------------");
 
-        Serial.println("✅ ForexDisplayManager initialized");
-        return true;
+        if (isForexEvent(event)) {
+            processForexEvent(toForexEvent(event));
+        }
+
+        switch (event.type)
+        {
+        case CloudMouse::EventType::ENCODER_CLICK:
+            handleEncoderClick();
+            break;
+        
+        default:
+            break;
+        }
     }
 
     // ============================================================================
@@ -87,38 +120,31 @@ namespace ForexExample
 
     void ForexDisplayManager::processForexEvent(const ForexEventData &event)
     {
-        Serial.println("------------------------------------------------------");
-        Serial.println("|    RECEIVING FROM APP ------- APP - UI callback    |");
-        Serial.println("------------------------------------------------------");
-        Serial.println("");
-        Serial.println("------------------------------------------------------");
-        Serial.println("");
-        Serial.printf("%d", event.type);
-        Serial.println("");
-        Serial.println("------------------------------------------------------");
-
-        if (isListRecreating)
-        {
-            return;
-        }
-
         switch (event.type)
         {
+        case ForexEventType::FOREX_DISPLAY_BOOTSTRAP:
+            bootstrap();
+            break;
+
+        case ForexEventType::FOREX_SHOW_LIST:
+            showScreen(ForexScreen::SYMBOL_LIST);
+            break;
+
+        case ForexEventType::FOREX_SHOW_LOADING:
+            showScreen(ForexScreen::LOADING);
+            break;
+
         case ForexEventType::FOREX_CONFIG_NEEDED:
             showScreen(ForexScreen::CONFIG_NEEDED);
             break;
 
         case ForexEventType::FOREX_CONFIG_VALID:
+            scheduleRecreateSymbolList();
             showScreen(ForexScreen::SYMBOL_LIST);
             break;
 
         case ForexEventType::FOREX_CONFIG_UPDATED:
         {
-            CloudMouse::Event wakeup = CloudMouse::EventType::DISPLAY_WAKE_UP;
-            CloudMouse::EventBus::instance().sendToUI(wakeup);
-
-            showScreen(ForexScreen::CONFIG_SAVED);
-            delay(500);
             scheduleRecreateSymbolList();
         }
         break;
@@ -146,10 +172,10 @@ namespace ForexExample
                     {
                         updateSymbolDetail(symbolData[i]);
                     }
-                    else
-                    {
-                        showScreen(ForexScreen::SYMBOL_LIST);
-                    }
+                    // else
+                    // {
+                    //     showScreen(ForexScreen::SYMBOL_LIST);
+                    // }
 
                     break;
                 }
@@ -270,6 +296,11 @@ namespace ForexExample
         lv_obj_set_flex_align(list_symbols, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START);
         lv_obj_set_scrollbar_mode(list_symbols, LV_SCROLLBAR_MODE_AUTO);
 
+        // disable scroll animation
+        lv_obj_add_flag(list_symbols, LV_OBJ_FLAG_SCROLLABLE);
+        lv_obj_remove_flag(list_symbols, LV_OBJ_FLAG_SCROLL_MOMENTUM);
+        lv_obj_clear_flag(list_symbols, LV_OBJ_FLAG_SCROLL_ON_FOCUS);
+
         // Create list item templates (will be populated later)
         for (int i = 0; i < MAX_SYMBOLS; i++)
         {
@@ -338,11 +369,16 @@ namespace ForexExample
             lv_obj_set_style_text_color(sym_label, lv_color_hex(0xffffff), 0);
             lv_obj_align(sym_label, LV_ALIGN_LEFT_MID, 0, 0);
 
+            Serial.println(symbolData[i].symbol.c_str());
+
             // Price (center)
             lv_obj_t *price_label = lv_label_create(item);
             if (symbolData[i].dataValid)
             {
                 // lv_label_set_text(price_label, formatPrice(symbolData[i].price).c_str());
+                Serial.println("");
+                Serial.printf("PRICE: %.2f", symbolData[i].price);
+                Serial.println("");
                 lv_label_set_text_fmt(price_label, "%.2f", symbolData[i].price);
             }
             else
@@ -357,6 +393,10 @@ namespace ForexExample
             lv_obj_t *change_label = lv_label_create(item);
             if (symbolData[i].dataValid)
             {
+                Serial.println("");
+                Serial.printf("CHANGE PERCENT: %.2f", symbolData[i].changePercent);
+                Serial.println("");
+
                 // lv_label_set_text(change_label, formatChangePercent(symbolData[i].changePercent).c_str());
                 lv_label_set_text_fmt(change_label, "%.2f%%", symbolData[i].changePercent);
                 lv_obj_set_style_text_color(change_label, getChangeColor(symbolData[i].changePercent), 0);
@@ -579,7 +619,8 @@ namespace ForexExample
 
         // Resetta il flag
         isListRecreating = false;
-        showScreen(ForexScreen::SYMBOL_LIST);
+        // delay(1000);
+        // showScreen(ForexScreen::SYMBOL_LIST);
     }
 
     void ForexDisplayManager::createSymbolDetailScreen()
@@ -722,7 +763,8 @@ namespace ForexExample
 
         if (target_screen)
         {
-            lv_screen_load_anim(target_screen, LV_SCR_LOAD_ANIM_FADE_ON, 500, 0, false);
+            lv_screen_load(target_screen);
+            // lv_screen_load_anim(target_screen, LV_SCR_LOAD_ANIM_FADE_ON, 500, 0, false);
         }
     }
 

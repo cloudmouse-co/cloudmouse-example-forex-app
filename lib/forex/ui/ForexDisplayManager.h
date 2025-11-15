@@ -158,10 +158,20 @@ namespace ForexExample
          */
         void processForexEvent(const ForexEventData &event);
 
+        // Static callback wrapper for SDK DisplayManager
+        // This gets called from Core 1 when DisplayManager processes events
+        static void handleDisplayCallback(const CloudMouse::Event& event) {
+            if (instance) {
+                instance->onDisplayEvent(event); 
+            }
+        }
+
         /**
          * Get current screen
          */
         ForexScreen getCurrentScreen() const { return currentScreen; }
+
+        bool isInitialized() const { return initialized; }
 
         /**
          * Force screen change (for testing/debug)
@@ -181,6 +191,12 @@ namespace ForexExample
 
 
     private:
+        // Singleton instance for static callback access
+        static ForexDisplayManager* instance;
+        
+        // Instance method that actually handles the event
+        void onDisplayEvent(const CloudMouse::Event& event);
+
         ForexPreferences &preferences;
 
         // Current state
@@ -193,6 +209,7 @@ namespace ForexExample
         int symbolCount;
 
         bool isListRecreating = false;
+        bool initialized = false;
 
         // ====================================================================
         // LVGL SCREEN OBJECTS
@@ -395,7 +412,10 @@ namespace ForexExample
          */
         void updateChart(lv_obj_t *chart, const float prices[], int count);
 
+        void bootstrap();
+
         static void group_focus_cb(lv_group_t *group);
+
     };
 
 } // namespace ForexExample

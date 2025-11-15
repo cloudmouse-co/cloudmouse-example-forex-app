@@ -13,6 +13,7 @@ namespace ForexExample
     // TwelveData API base URL
     // const char *ForexDataService::API_BASE_URL = "https://api.twelvedata.com";
     const char *ForexDataService::API_BASE_URL = "http://192.168.1.129:3000";
+    // const char *ForexDataService::API_BASE_URL = "http://192.168.90.246:3000";
 
     // ============================================================================
     // CONSTRUCTOR & INITIALIZATION
@@ -78,6 +79,9 @@ namespace ForexExample
             return false; // ✅ Questo c'era già
         }
 
+        CloudMouse::Core::instance().getLEDManager()->setLoadingState(true);
+        // CloudMouse::EventBus::instance().sendToUI(toSDKEvent(ForexEventData::event(ForexEventType::FOREX_SHOW_LOADING)));
+
         Serial.printf("📊 Fetching data for %d symbols...\n", symbolCount);
 
         bool allSuccess = true;
@@ -128,15 +132,20 @@ namespace ForexExample
             }
 
             // Small delay between requests to be nice to the API
-            delay(100);
+            delay(250);
         }
+
+        CloudMouse::Core::instance().getLEDManager()->setLoadingState(false);
 
         if (allSuccess)
         {
+            CloudMouse::Core::instance().getLEDManager()->flashColor(0, 255, 0, 255, 500);
+            // CloudMouse::EventBus::instance().sendToUI(toSDKEvent(ForexEventData::event(ForexEventType::FOREX_SHOW_LIST)));
             Serial.println("✅ Poll complete - all symbols updated");
         }
         else
         {
+            CloudMouse::Core::instance().getLEDManager()->flashColor(255, 0, 0, 255, 1000);
             Serial.println("⚠️ Poll complete - some symbols failed");
         }
 
@@ -452,16 +461,9 @@ namespace ForexExample
         return ((current - previous) / previous) * 100.0f;
     }
 
-    void ForexDataService::emitEvent(const ForexEventData &eventData) {
-
-        // Convert to SDK Event
-        CloudMouse::Event sdkEvent;
-        sdkEvent.type = static_cast<CloudMouse::EventType>(100 + static_cast<int>(eventData.type));
-        sdkEvent.value = eventData.value;
-        strncpy(sdkEvent.stringData, eventData.stringData, sizeof(sdkEvent.stringData) - 1);
-
-        // Send to main Core (to loop to ForexApp)
-        CloudMouse::EventBus::instance().sendToApp(sdkEvent);
+    void ForexDataService::emitEvent(const ForexEventData &eventData) 
+    {
+        CloudMouse::EventBus::instance().sendToUI(toSDKEvent(eventData));
     }
 
 } // namespace ForexExample

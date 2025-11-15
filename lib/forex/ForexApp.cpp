@@ -63,17 +63,17 @@ namespace ForexExample
         // Step 2: Initialize config server (always available, even without WiFi)
         configServer = new ForexConfigServer(*preferences);
 
-        // Step 3: Check if we have valid configuration
-        validateConfiguration();
-
-        // Step 5: NOW create DisplayManager (cache is populated if WiFi was ready)
+        // Step 3: Create DisplayManager (UI layer)
         displayManager = new ForexDisplayManager(*preferences);
+        displayManager->init();
 
-        // Step 5: NOW create DisplayManager (cache is populated if WiFi was ready)
-        dataService = new ForexDataService(*preferences);
-        dataService->init();
+        // Step 4: Send display bootstrap event to create LVGL screens on Core 1
+        notifyDisplay(ForexEventData::event(ForexEventType::FOREX_DISPLAY_BOOTSTRAP));
 
-        APP_LOGGER("✅ ForexApp initialized successfully!");
+        // Step 5: Stay in INITIALIZING until WiFi connects
+        changeState(ForexAppState::INITIALIZING);
+
+        APP_LOGGER("✅ ForexApp initialized - waiting for WiFi...");
         inited = true;
         return true;
     }
@@ -84,104 +84,83 @@ namespace ForexExample
 
     void ForexApp::update()
     {
-        // Step 1: Initialize display manager when LVGL is ready
-        static bool forexDisplayInited = false;
-
-        if (!forexDisplayInited && displayManager)
-        {
-            if (lv_display_get_default() != nullptr)
-            {
-                APP_LOGGER("✅ LVGL ready, initializing ForexDisplayManager...");
-                displayManager->init();
-                forexDisplayInited = true;
-            }
-        }
-
-        // Step 3: Process ALL SDK events (SINGLE CONSUMPTION POINT)
+        // Step 1: Process SDK events (WiFi, etc)
         CloudMouse::Event sdkEvent;
         while (CloudMouse::EventBus::instance().receiveFromCore(sdkEvent, 0))
         {
-            APP_LOGGER("-------------------------------------------------------");
-            APP_LOGGER("RECEIVING FROM CORE ---- CORE - APP bus");
-            Serial.printf("%d", (int)sdkEvent.type);
-            APP_LOGGER("-------------------------------------------------------");
-
             processSDKEvent(sdkEvent);
         }
 
-        // Step 4: Update config server (handle web requests)
+        // Step 2: Update config server (handle web requests)
         if (configServer)
         {
             configServer->update();
         }
 
-        // Step 5: Check market status periodically
+        // STOP HERE if not ready for polling
+        if (currentState != ForexAppState::POLLING_ACTIVE &&
+            currentState != ForexAppState::POLLING_PAUSED)
+        {
+            return;
+        }
+
+        // Step 3: Check market status periodically
         if (millis() - lastMarketCheck > MARKET_CHECK_INTERVAL_MS)
         {
             checkAndUpdateMarketStatus();
             lastMarketCheck = millis();
         }
 
-        // Step 6: Poll forex data intelligently based on state and cache freshness
+        // Step 4: Poll forex data based on state
         if (dataService && millis() - lastPollTime > POLL_INTERVAL_MS)
         {
             bool shouldPoll = false;
 
             if (currentState == ForexAppState::POLLING_ACTIVE)
             {
-                APP_LOGGER("🔄 Polling during market open - loading...");
                 // Market is open - always poll for fresh data
+                APP_LOGGER("🔄 Market open - polling for fresh data");
                 shouldPoll = true;
             }
             else if (currentState == ForexAppState::POLLING_PAUSED)
             {
-                // Market is closed - only poll if we don't have fresh cached data
+                // Market is closed - only poll if cache is stale
                 if (!dataService->hasFreshCache())
                 {
-                    APP_LOGGER("🔄 Cache stale during market close - refreshing...");
+                    APP_LOGGER("🔄 Cache stale - refreshing data");
                     shouldPoll = true;
+                }
+                else
+                {
+                    APP_LOGGER("📦 Cache fresh - skipping poll");
                 }
             }
 
             if (shouldPoll)
             {
-                APP_LOGGER("🔄 Polling forex data...");
-                displayManager->showScreen(ForexScreen::LOADING);
+                // Show loading ONLY if we're currently showing the list
+                if (displayManager->getCurrentScreen() == ForexScreen::SYMBOL_LIST)
+                {
+                    notifyDisplay(ForexEventData::event(ForexEventType::FOREX_SHOW_LOADING));
+                }
 
                 if (dataService->poll())
                 {
-                    lastPollTime = millis();
-                    APP_LOGGER("✅ Data poll successful");
+                    APP_LOGGER("✅ Poll successful");
+                    // After successful poll, go back to list
+                    notifyDisplay(ForexEventData::event(ForexEventType::FOREX_SHOW_LIST));
                 }
                 else
                 {
-                    APP_LOGGER("⚠️ Data poll failed");
-                    ForexEventData errorEvt = ForexEventData::apiError("Poll failed", 0);
-                    notifyDisplay(errorEvt);
+                    APP_LOGGER("⚠️ Poll failed");
+                    notifyDisplay(ForexEventData::apiError("Poll failed", 0));
+                    // Keep showing list with old data
+                    notifyDisplay(ForexEventData::event(ForexEventType::FOREX_SHOW_LIST));
                 }
             }
-            else
-            {
-                // ✅ Cache is fresh, skip poll
-                APP_LOGGER("📦 Using fresh cache - skipping poll");
-                displayManager->showScreen(ForexScreen::SYMBOL_LIST);
-                lastPollTime = millis(); // ✅ Reset timer
-            }
-        }
 
-        // Step 7: Notify UI about cached data availability when market is paused
-        if (currentState == ForexAppState::POLLING_PAUSED && dataService)
-        {
-            if (!dataService->hasFreshCache())
-            {
-                displayManager->showScreen(ForexScreen::LOADING);
-                dataService->poll();
-                lastPollTime = millis();
-            }
-            else if (displayManager->getCurrentScreen() != ForexScreen::SYMBOL_LIST && displayManager->getCurrentScreen() != ForexScreen::SYMBOL_DETAIL)
-            {
-                displayManager->showScreen(ForexScreen::SYMBOL_LIST);
-            }
+            // Update last poll time regardless
+            lastPollTime = millis();
         }
     }
 
@@ -192,16 +171,16 @@ namespace ForexExample
     void ForexApp::processSDKEvent(const CloudMouse::Event &event)
     {
 
-        if (static_cast<int>(event.type) >= 100)
-        {
-            ForexEventData forexEvent;
-            forexEvent.type = static_cast<ForexEventType>(static_cast<int>(event.type) - 100);
-            forexEvent.value = event.value;
-            strncpy(forexEvent.stringData, event.stringData, sizeof(forexEvent.stringData) - 1);
-            forexEvent.price = event.value;
+        // if (static_cast<int>(event.type) >= 100)
+        // {
+        //     ForexEventData forexEvent;
+        //     forexEvent.type = static_cast<ForexEventType>(static_cast<int>(event.type) - 100);
+        //     forexEvent.value = event.value;
+        //     strncpy(forexEvent.stringData, event.stringData, sizeof(forexEvent.stringData) - 1);
+        //     forexEvent.price = event.value;
 
-            notifyDisplay(forexEvent);
-        }
+        //     notifyDisplay(forexEvent);
+        // }
 
         switch (event.type)
         {
@@ -213,23 +192,23 @@ namespace ForexExample
             handleWiFiDisconnected();
             break;
 
-        case CloudMouse::EventType::ENCODER_ROTATION:
-            handleEncoderRotation(event.value);
-            break;
+            // case CloudMouse::EventType::ENCODER_ROTATION:
+            //     handleEncoderRotation(event.value);
+            //     break;
 
-        case CloudMouse::EventType::ENCODER_CLICK:
-            handleEncoderClick();
-            break;
+            // case CloudMouse::EventType::ENCODER_CLICK:
+            //     handleEncoderClick();
+            //     break;
 
-        case CloudMouse::EventType::ENCODER_LONG_PRESS:
-        {
-            // Long press could open config menu
-            APP_LOGGER("🔧 Long press detected - showing config");
-            ForexEventData evt;
-            evt.type = ForexEventType::FOREX_SHOW_CONFIG;
-            notifyDisplay(evt);
-            break;
-        }
+            // case CloudMouse::EventType::ENCODER_LONG_PRESS:
+            // {
+            //     // Long press could open config menu
+            //     APP_LOGGER("🔧 Long press detected - showing config");
+            //     ForexEventData evt;
+            //     evt.type = ForexEventType::FOREX_SHOW_CONFIG;
+            //     notifyDisplay(evt);
+            //     break;
+            // }
 
         default:
             // notifyDisplay(event);
@@ -243,47 +222,72 @@ namespace ForexExample
 
     void ForexApp::handleWiFiConnected()
     {
-        APP_LOGGER("📡 WiFi connected - starting network services");
+        APP_LOGGER("📡 WiFi connected - initializing network services");
 
+        // Transition from INITIALIZING to WIFI_READY
+        if (currentState == ForexAppState::INITIALIZING)
+        {
+            changeState(ForexAppState::WIFI_READY);
+        }
+
+        // Start config server
         if (configServer)
         {
             if (!configServer->init())
             {
                 APP_LOGGER("⚠️ config server init ERROR!");
+                return;
             }
-
             configServer->setConfigChangedCallback([this]()
                                                    { this->onConfigurationSaved(); });
-            APP_LOGGER("✅ config server started gracefully!");
+            APP_LOGGER("✅ config server started!");
         }
 
-        // If we have valid config and data service isn't running, start it
-        if (currentState != ForexAppState::CONFIG_NEEDED && dataService)
+        // NOW validate configuration
+        validateConfiguration();
+
+        // If config is valid (state changed to READY), initialize data service
+        if (currentState == ForexAppState::READY)
         {
+            // Create and init data service
+            if (!dataService)
+            {
+                dataService = new ForexDataService(*preferences);
+            }
             dataService->init();
 
-            // ✅ DON'T poll here - wait for DisplayManager to be ready!
-            APP_LOGGER("⏳ DataService ready");
+            APP_LOGGER("✅ DataService initialized");
 
-            static bool initialPollDone = false;
-            if (!initialPollDone)
-            {
-                if (!dataService->hasFreshCache())
-                {
-                    displayManager->showScreen(ForexScreen::LOADING);
-                    dataService->poll();
-                }
-                else if (displayManager->getCurrentScreen() != ForexScreen::SYMBOL_LIST)
-                {
-                    displayManager->showScreen(ForexScreen::SYMBOL_LIST);
-                }
-                lastPollTime = millis();
-                initialPollDone = true;
-            }
-
-            // Check market status and start/pause polling based on hours
+            // Check market hours and transition to appropriate polling state
             checkAndUpdateMarketStatus();
+
+            // Do initial poll if needed
+            if (!dataService->hasFreshCache())
+            {
+                APP_LOGGER("🔄 No fresh cache - doing initial poll");
+                notifyDisplay(ForexEventData::event(ForexEventType::FOREX_SHOW_LOADING));
+
+                if (dataService->poll())
+                {
+                    APP_LOGGER("✅ Initial poll successful");
+                    // After successful poll, show list
+                    notifyDisplay(ForexEventData::event(ForexEventType::FOREX_SHOW_LIST));
+                }
+                else
+                {
+                    APP_LOGGER("⚠️ Initial poll failed");
+                    notifyDisplay(ForexEventData::apiError("Initial poll failed", 0));
+                }
+
+                lastPollTime = millis();
+            }
+            else
+            {
+                APP_LOGGER("📦 Using cached data");
+                notifyDisplay(ForexEventData::event(ForexEventType::FOREX_SHOW_LIST));
+            }
         }
+        // else: state is CONFIG_NEEDED, user must configure via web interface
     }
 
     void ForexApp::handleWiFiDisconnected()
@@ -335,45 +339,37 @@ namespace ForexExample
     {
         switch (currentState)
         {
+        case ForexAppState::INITIALIZING:
+            APP_LOGGER("⏳ Initializing - waiting for WiFi");
+            break;
+
+        case ForexAppState::WIFI_READY:
+            APP_LOGGER("📡 WiFi ready - validating configuration");
+            break;
+
         case ForexAppState::CONFIG_NEEDED:
-        {
-            ForexEventData evt = ForexEventData::configNeeded();
-            notifyDisplay(evt);
-        }
-        break;
+            APP_LOGGER("⚠️ Configuration needed");
+            notifyDisplay(ForexEventData::configNeeded());
+            break;
 
         case ForexAppState::READY:
-        {
-            ForexEventData evt;
-            evt.type = ForexEventType::FOREX_CONFIG_VALID;
-            notifyDisplay(evt);
-        }
-        break;
+            APP_LOGGER("✅ Ready - preparing to start polling");
+            notifyDisplay(ForexEventData::event(ForexEventType::FOREX_CONFIG_VALID));
+            break;
 
         case ForexAppState::POLLING_ACTIVE:
-            APP_LOGGER("✅ Polling active - market is open");
-            {
-                ForexEventData evt;
-                evt.type = ForexEventType::FOREX_MARKET_OPEN;
-                notifyDisplay(evt);
-            }
+            APP_LOGGER("📈 Polling active - market is open");
+            notifyDisplay(ForexEventData::event(ForexEventType::FOREX_MARKET_OPEN));
             break;
 
         case ForexAppState::POLLING_PAUSED:
-            APP_LOGGER("⏸️ Polling paused - market is closed");
-            {
-                ForexEventData evt;
-                evt.type = ForexEventType::FOREX_MARKET_CLOSED;
-                notifyDisplay(evt);
-            }
+            APP_LOGGER("📉 Polling paused - market is closed");
+            notifyDisplay(ForexEventData::event(ForexEventType::FOREX_MARKET_CLOSED));
             break;
 
         case ForexAppState::ERROR:
-            APP_LOGGER("❌ App in error state");
-            {
-                ForexEventData evt = ForexEventData::apiError("App error", -1);
-                notifyDisplay(evt);
-            }
+            APP_LOGGER("❌ Error state");
+            notifyDisplay(ForexEventData::apiError("App error", -1));
             break;
 
         default:
@@ -430,19 +426,27 @@ namespace ForexExample
 
     void ForexApp::checkAndUpdateMarketStatus()
     {
+        // Only check market hours if we're in a state where it matters
+        if (currentState != ForexAppState::READY &&
+            currentState != ForexAppState::POLLING_ACTIVE &&
+            currentState != ForexAppState::POLLING_PAUSED)
+        {
+            return;
+        }
+
         bool marketOpen = isMarketOpen();
 
-        if (marketOpen)
+        if (marketOpen && currentState != ForexAppState::POLLING_ACTIVE)
         {
-            // Market just opened
+            APP_LOGGER("📈 Market opened - activating polling");
             changeState(ForexAppState::POLLING_ACTIVE);
 
-            // Immediately poll fresh data
-            lastPollTime = 0; // Force immediate poll
+            // Force immediate poll when market opens
+            lastPollTime = 0;
         }
-        else if (!marketOpen)
+        else if (!marketOpen && currentState != ForexAppState::POLLING_PAUSED)
         {
-            // Market just closed
+            APP_LOGGER("📉 Market closed - pausing polling");
             changeState(ForexAppState::POLLING_PAUSED);
         }
     }
@@ -476,49 +480,74 @@ namespace ForexExample
 
     void ForexApp::notifyDisplay(const ForexEventData &eventData)
     {
-        if (displayManager)
-        {
-            displayManager->onForexEvent(eventData);
-        }
+        CloudMouse::EventBus::instance().sendToUI(toSDKEvent(eventData));
     }
 
     void ForexApp::onConfigurationSaved()
     {
-        APP_LOGGER("🎉 Configuration saved notification received!");
+        APP_LOGGER("🎉 Configuration saved!");
 
-        int currentSymbolCount = preferences->getSymbolCount();
         bool hasApiKey = preferences->hasApiKey();
+        int symbolCount = preferences->getSymbolCount();
+
+        CloudMouse::Event wakeup;
+        wakeup.type = CloudMouse::EventType::DISPLAY_WAKE_UP;
+        CloudMouse::EventBus::instance().sendToUI(wakeup);
 
         // Config was added for the first time!
-        if (currentState == ForexAppState::CONFIG_NEEDED && hasApiKey && currentSymbolCount > 0)
+        if (currentState == ForexAppState::CONFIG_NEEDED && hasApiKey && symbolCount > 0)
         {
-            APP_LOGGER("🎉 First configuration detected! Starting services...");
+            APP_LOGGER("🎉 First configuration! Starting services...");
 
-            // Change state
-            changeState(ForexAppState::READY);
+            // Revalidate - will transition to READY
+            validateConfiguration();
+
+            // Initialize data service
+            if (!dataService)
+            {
+                dataService = new ForexDataService(*preferences);
+            }
+            dataService->init();
 
             // Check market and start polling
             checkAndUpdateMarketStatus();
-        }
-        // Config was changed (symbols updated)
-        else if (currentState != ForexAppState::CONFIG_NEEDED)
-        {
-            APP_LOGGER("🔄 Configuration updated! Reloading...");
-        }
 
-        ForexEventData evt;
-        evt.type = ForexEventType::FOREX_CONFIG_UPDATED;
-        notifyDisplay(evt);
+            // Notify UI about config update
+            notifyDisplay(ForexEventData::event(ForexEventType::FOREX_CONFIG_UPDATED));
 
-        // Reinit DataService with new symbols
-        if (dataService)
-        {
-            delete dataService;
+            // Do initial poll
+            if (dataService->poll())
+            {
+                APP_LOGGER("✅ Initial poll after config successful");
+            }
+            lastPollTime = millis();
         }
-        dataService = new ForexDataService(*preferences);
-        dataService->init();
-        dataService->poll();
-        lastPollTime = millis();
+        // Config was updated (symbols changed, etc)
+        else if (hasApiKey && symbolCount > 0)
+        {
+            APP_LOGGER("🔄 Configuration updated! Reloading services...");
+
+            // Notify UI about config update
+            notifyDisplay(ForexEventData::event(ForexEventType::FOREX_CONFIG_UPDATED));
+
+            // Recreate data service with new config
+            if (dataService)
+            {
+                delete dataService;
+            }
+            dataService = new ForexDataService(*preferences);
+            dataService->init();
+
+            // Poll fresh data
+            dataService->poll();
+            lastPollTime = millis();
+        }
+        else
+        {
+            // Config was cleared/invalidated
+            APP_LOGGER("⚠️ Invalid configuration after save");
+            changeState(ForexAppState::CONFIG_NEEDED);
+        }
     }
 
 } // namespace ForexExample
