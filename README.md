@@ -389,11 +389,8 @@ Network Offline:
 ### DeviceConfig.h
 Hardware pin assignments and system parameters (CloudMouse standard configuration).
 
-### ForexEvents.h
+### ForexApp.h
 Custom event type definitions for app-specific events.
-
-### SKILL.md Files
-Best practices and guidelines for document generation (DOCX, PPTX, PDF, etc.) - part of CloudMouse SDK.
 
 ---
 
@@ -460,6 +457,47 @@ API Response → JSON Parse → Data Validation → Cache Save → Alert Check �
 - Missing fields → Use default values
 - API rate limit → Exponential backoff
 - Network timeout → Use cached data
+
+---
+
+#### ForexConfigServer
+Web-based configuration interface.
+
+**Endpoints:**
+- Local network: `http://cloudmouse-forex.local:8080/forex`
+- Status API: `http://cloudmouse-forex.local:8080/forex/status`
+
+**Configuration Interface:**
+- `GET /forex` - Main configuration page with current settings
+- `POST /forex/config` - Save configuration (symbols, API key, alert thresholds)
+- `POST /forex/test` - Validate API key against TwelveData
+- `POST /forex/clear` - Clear all settings and reset to defaults
+
+**Status API:**
+- `GET /forex/status` - JSON status endpoint for monitoring/integration
+
+**Status Response Example:**
+```json
+{
+  "configured": true,
+  "api_key_set": true,
+  "symbol_count": 5,
+  "symbols": ["GPRO", "NVIDIA", "MSFT", "AAPL", "GOOGL"]
+}
+```
+
+**Use Cases:**
+- **Home automation integration** - Poll `/forex/status` to check device configuration
+- **Remote monitoring** - Verify API key status without opening UI
+- **Multi-device management** - Script-based configuration deployment
+
+**Features:**
+- Modern gradient UI
+- Real-time form validation
+- AJAX-based operations (no page reloads)
+- Mobile-responsive design
+- Success/error feedback with auto-reload
+- mDNS support for easy local network access
 
 ---
 

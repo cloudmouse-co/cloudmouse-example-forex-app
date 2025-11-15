@@ -39,7 +39,6 @@ namespace ForexExample
         webServer->on("/forex/status", HTTP_GET, handleStatusRequest);
         webServer->on("/forex/test", HTTP_POST, handleTestApi);
         webServer->on("/forex/clear", HTTP_POST, handleClearConfig);
-        // webServer->on("/forex/test", HTTP_POST, handleTestRequest);
 
         webServer->on("/", HTTP_GET, []()
                       {
