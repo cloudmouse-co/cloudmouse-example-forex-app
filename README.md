@@ -188,22 +188,6 @@ Change Percent Colors:
 └─ Negative:    Red (#ff4757)
 ```
 
-#### ForexConfigServer
-Web-based configuration interface.
-
-**Endpoints:**
-- `GET /` - Configuration page with current settings
-- `POST /forex/config` - Save configuration
-- `POST /forex/test` - Validate API key
-- `POST /forex/clear` - Clear all settings
-
-**Features:**
-- Modern gradient UI
-- Real-time form validation
-- AJAX-based operations (no page reloads)
-- Mobile-responsive design
-- Success/error feedback with auto-reload
-
 ---
 
 ## 🛠️ Hardware Requirements
