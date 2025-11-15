@@ -3,8 +3,8 @@
 A professional real-time forex market tracking application for **[CloudMouse](https://cloudmouse.co)** devices. Features live price monitoring, configurable alerts, and a beautiful LVGL-powered interface.
 
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
-![Platform](https://img.shields.io/badge/platform-CloudMouse-purple.svg)
-![LVGL](https://img.shields.io/badge/LVGL-v9-orange.svg)
+![Platform](https://img.shields.io/badge/platform-ESP32-green.svg)
+![LVGL](https://img.shields.io/badge/LVGL-v9.4-orange.svg)
 
 > **Note**: This application requires a [CloudMouse device](https://cloudmouse.co) or compatible hardware with ESP32, ILI9488 display, rotary encoder, and RGB LED.
 
@@ -290,7 +290,7 @@ For testing without using TwelveData API credits, a local mock server is include
 
 1. **Navigate to mock server directory:**
 ```bash
-cd fakeTwelveData
+cd mockTwelveData
 ```
 
 2. **Install dependencies:**
@@ -469,25 +469,25 @@ API Response → JSON Parse → Data Validation → Cache Save → Alert Check �
 ```
 cloudmouse-example-forex-app/
 ├── src/
-│   └── main.cpp                 # Entry point
+│   └── main.cpp                      # Entry point
 ├── lib/
-│   ├── core/                    # CloudMouse SDK Core
-│   │   ├── Core.*               # System coordinator
-│   │   ├── EventBus.*           # Inter-core communication
-│   │   └── Events.h             # Event definitions
-│   ├── hardware/                # Hardware abstraction
-│   │   ├── DisplayManager.*     # LVGL integration
-│   │   ├── EncoderManager.*     # Rotary encoder
-│   │   ├── LEDManager.*         # WS2812B control
-│   │   └── SimpleBuzzer.*       # Audio feedback
-│   ├── network/                 # Network components
-│   │   ├── WiFiManager.*        # WiFi connectivity
-│   │   └── WebServerManager.*   # HTTP server
-│   ├── prefs/                   # Storage
-│   │   └── PreferencesManager.* # NVS wrapper
-│   └── forex/                   # Forex Application
-│       ├── ForexApp.*           # Main orchestrator
-│       ├── ForexEvents.h        # Custom events
+│   ├── core/                         # CloudMouse SDK Core
+│   │   ├── Core.*                    # System coordinator
+│   │   ├── EventBus.*                # Inter-core communication
+│   │   └── Events.h                  # Event definitions
+│   ├── hardware/                     # Hardware abstraction
+│   │   ├── DisplayManager.*          # LVGL integration
+│   │   ├── EncoderManager.*          # Rotary encoder
+│   │   ├── LEDManager.*              # WS2812B control
+│   │   └── SimpleBuzzer.*            # Audio feedback
+│   ├── network/                      # Network components
+│   │   ├── WiFiManager.*             # WiFi connectivity
+│   │   └── WebServerManager.*        # HTTP server
+│   ├── prefs/                        # Storage
+│   │   └── PreferencesManager.*      # NVS wrapper
+│   └── forex/                        # Forex Application
+│       ├── ForexApp.*                # Main orchestrator
+│       ├── ForexEvents.h             # Custom events
 │       ├── services/
 │       │   ├── ForexDataService.*    # API integration
 │       │   └── ForexPreferences.*    # Configuration storage
@@ -495,11 +495,11 @@ cloudmouse-example-forex-app/
 │       │   └── ForexConfigServer.*   # Web config interface
 │       └── ui/
 │           └── ForexDisplayManager.* # LVGL UI layer
-├── fakeTwelveData/              # Local mock API server
-│   ├── server.js                # Node.js mock server
-│   └── package.json             # Dependencies
-├── platformio.ini               # Build configuration
-└── README.md                    # This file
+├── mockTwelveData/                   # Local mock API server
+│   ├── server.js                     # Node.js mock server
+│   └── package.json                  # Dependencies
+├── platformio.ini                    # Build configuration
+└── README.md                         # This file
 ```
 
 ### Building from Source
