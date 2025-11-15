@@ -442,8 +442,9 @@ API Response → JSON Parse → Data Validation → Cache Save → Alert Check �
 - API rate limit → Exponential backoff
 - Network timeout → Use cached data
 
+---
 
-### Web-based configuration interface
+## 🛜 Web-based configuration interface
 
 **Endpoints:**
 - Local network: `http://cloudmouse-forex.local:8080/forex`
