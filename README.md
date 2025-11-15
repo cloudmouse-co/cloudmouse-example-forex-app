@@ -387,7 +387,6 @@ Custom event type definitions for app-specific events.
 - **Batch NVS operations** - Prevents INVALID_HANDLE race conditions
 
 ### Memory Optimization
-- **PSRAM buffering** - Large LVGL buffers in external RAM
 - **String pooling** - Minimal heap fragmentation
 - **Static screen allocation** - Created once, updated in place
 - **Efficient caching** - Only store essential OHLC data
