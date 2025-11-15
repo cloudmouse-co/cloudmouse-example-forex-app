@@ -1,10 +1,12 @@
 # CloudMouse Forex Tracker
 
-A professional real-time forex market tracking device built on the CloudMouse SDK with LVGL integration. Features live price monitoring, configurable alerts, and a beautiful touch-enabled interface.
+A professional real-time forex market tracking application for **[CloudMouse](https://cloudmouse.co)** devices. Features live price monitoring, configurable alerts, and a beautiful LVGL-powered interface.
 
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
-![Platform](https://img.shields.io/badge/platform-ESP32-green.svg)
+![Platform](https://img.shields.io/badge/platform-CloudMouse-purple.svg)
 ![LVGL](https://img.shields.io/badge/LVGL-v9-orange.svg)
+
+> **Note**: This application requires a [CloudMouse device](https://cloudmouse.co) or compatible hardware with ESP32, ILI9488 display, rotary encoder, and RGB LED.
 
 ---
 
@@ -110,7 +112,7 @@ INITIALIZING → WIFI_READY → CONFIG_NEEDED/READY → POLLING_ACTIVE/POLLING_P
 Handles all API communication and data processing.
 
 **Features:**
-- TwelveData API integration
+- TwelveData API integration (switchable to local mock server for dev)
 - Concurrent symbol fetching
 - Alert threshold detection with crossing logic
 - Automatic retry on failures
@@ -206,33 +208,17 @@ Web-based configuration interface.
 
 ## 🛠️ Hardware Requirements
 
-### Required Components
-- **ESP32** (dual-core, 240MHz)
-- **ILI9488 Display** (480x320 SPI)
-- **Rotary Encoder** with push button
-- **WS2812B RGB LED** (NeoPixel)
-- **Passive Buzzer**
+### CloudMouse Device
+This application is designed for **[CloudMouse](https://cloudmouse.co)** devices, which include:
+- ESP32 dual-core processor (240MHz)
+- ILI9488 480x320 IPS display
+- Rotary encoder with push button
+- WS2812B RGB LED
+- Passive buzzer
+- WiFi connectivity
 
-### Pinout Configuration
-See `lib/config/DeviceConfig.h` for pin assignments.
-
-**Typical Setup:**
-```cpp
-Display (SPI):
-├─ MOSI: GPIO 23
-├─ SCK:  GPIO 18
-├─ CS:   GPIO 15
-├─ DC:   GPIO 2
-└─ RST:  GPIO 4
-
-Encoder:
-├─ CLK:  GPIO 32
-├─ DT:   GPIO 33
-└─ SW:   GPIO 25
-
-LED:     GPIO 27
-Buzzer:  GPIO 26
-```
+**Compatible Hardware:**
+Any ESP32-based board with similar hardware configuration can run this application with appropriate pin configuration adjustments.
 
 ---
 
@@ -258,13 +244,17 @@ Buzzer:  GPIO 26
 
 ## 🚀 Quick Start
 
-### 1. Get API Key
+### 1. Get API Key (Production Mode)
 Sign up for a free API key at [TwelveData](https://twelvedata.com)
 - Free tier: 800 requests/day
 - Supports major stock exchanges (NASDAQ, NYSE, etc.)
 
 ### 2. Flash Firmware
 ```bash
+# Clone repository
+git clone https://github.com/cloudmouse-co/cloudmouse-example-forex-app.git
+cd cloudmouse-example-forex-app
+
 # PlatformIO
 pio run --target upload
 
@@ -289,6 +279,63 @@ Sketch → Upload
 - Navigate with rotary encoder
 - Click to view symbol details
 - Alerts trigger when thresholds are crossed
+
+---
+
+## 🧪 Development Mode
+
+For testing without using TwelveData API credits, a local mock server is included.
+
+### Setup Local Mock Server
+
+1. **Navigate to mock server directory:**
+```bash
+cd fakeTwelveData
+```
+
+2. **Install dependencies:**
+```bash
+npm install
+```
+
+3. **Start mock server:**
+```bash
+npm start
+```
+
+#### Runnign mock server in dev mode
+
+```bash
+npm run dev
+```
+
+Server runs on `http://localhost:3000` by default.
+
+### Configure Device for Dev Mode
+
+Edit `lib/forex/services/ForexDataService.cpp`:
+```cpp
+// Production (TwelveData API)
+// const char *ForexDataService::API_BASE_URL = "https://api.twelvedata.com";
+
+// Development (Local mock server)
+const char *ForexDataService::API_BASE_URL = "http://YOUR_LOCAL_IP:3000";
+```
+
+**Example:**
+```cpp
+const char *ForexDataService::API_BASE_URL = "http://192.168.1.129:3000";
+```
+
+### Mock Server Features
+- Simulates TwelveData API responses
+- Generates realistic random price movements
+- No API key required
+- Instant responses (no rate limits)
+- Perfect for testing alert thresholds
+
+**Testing Alerts:**
+The mock server generates price changes that will trigger your configured alerts, making it easy to test the notification system without waiting for real market movements.
 
 ---
 
@@ -340,7 +387,7 @@ Network Offline:
 ## 🔧 Configuration Files
 
 ### DeviceConfig.h
-Hardware pin assignments and system parameters.
+Hardware pin assignments and system parameters (CloudMouse standard configuration).
 
 ### ForexEvents.h
 Custom event type definitions for app-specific events.
@@ -420,7 +467,7 @@ API Response → JSON Parse → Data Validation → Cache Save → Alert Check �
 
 ### Project Structure
 ```
-cloudmouse-forex/
+cloudmouse-example-forex-app/
 ├── src/
 │   └── main.cpp                 # Entry point
 ├── lib/
@@ -448,6 +495,9 @@ cloudmouse-forex/
 │       │   └── ForexConfigServer.*   # Web config interface
 │       └── ui/
 │           └── ForexDisplayManager.* # LVGL UI layer
+├── fakeTwelveData/              # Local mock API server
+│   ├── server.js                # Node.js mock server
+│   └── package.json             # Dependencies
 ├── platformio.ini               # Build configuration
 └── README.md                    # This file
 ```
@@ -455,8 +505,8 @@ cloudmouse-forex/
 ### Building from Source
 ```bash
 # Clone repository
-git clone https://github.com/yourusername/cloudmouse-forex.git
-cd cloudmouse-forex
+git clone https://github.com/cloudmouse-co/cloudmouse-example-forex-app.git
+cd cloudmouse-example-forex-app
 
 # Install PlatformIO
 pip install platformio
@@ -517,9 +567,10 @@ MIT License - See LICENSE file for details.
 
 ## 🙏 Acknowledgments
 
-Built on top of the **CloudMouse SDK** - A professional ESP32 framework for building touch-enabled IoT devices with LVGL integration.
+Built for **[CloudMouse](https://cloudmouse.co)** devices using the CloudMouse SDK - A professional ESP32 framework for building touch-enabled IoT devices with LVGL integration.
 
 **Key Technologies:**
+- [CloudMouse](https://cloudmouse.co) - Smart IoT device platform
 - [LVGL](https://lvgl.io) - Lightweight graphics library
 - [TwelveData](https://twelvedata.com) - Financial market data API
 - [ESP-IDF](https://docs.espressif.com/projects/esp-idf) - Espressif IoT Development Framework
@@ -529,12 +580,12 @@ Built on top of the **CloudMouse SDK** - A professional ESP32 framework for buil
 
 ## 📞 Support
 
-- **Issues**: [GitHub Issues](https://github.com/yourusername/cloudmouse-forex/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/yourusername/cloudmouse-forex/discussions)
-- **Documentation**: [Wiki](https://github.com/yourusername/cloudmouse-forex/wiki)
+- **Repository**: [GitHub](https://github.com/cloudmouse-co/cloudmouse-example-forex-app)
+- **Issues**: [GitHub Issues](https://github.com/cloudmouse-co/cloudmouse-example-forex-app/issues)
+- **CloudMouse**: [https://cloudmouse.co](https://cloudmouse.co)
 
 ---
 
-**Made with ❤️ using CloudMouse SDK**
+**Made with ❤️ for CloudMouse devices**
 
-*Transform your ESP32 into a professional market tracking device!*
+*Transform your CloudMouse into a professional market tracking device!*
