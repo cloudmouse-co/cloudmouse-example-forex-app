@@ -93,9 +93,26 @@ namespace CloudMouse::Prefs
             endBatch();
         }
 
-        batchOpen = preferences.begin(space, readOnly);
+        // Try up to 3 times with small delay
+        for (int attempt = 0; attempt < 3; attempt++)
+        {
+            batchOpen = preferences.begin(space, readOnly);
 
-        return batchOpen;
+            if (batchOpen)
+            {
+                if (attempt > 0)
+                {
+                    Serial.printf("✅ Batch opened on attempt %d\n", attempt + 1);
+                }
+                return true;
+            }
+
+            Serial.printf("⚠️ Batch open failed (attempt %d/3), retrying...\n", attempt + 1);
+            delay(10); // Small delay before retry
+        }
+
+        Serial.printf("❌ Batch open FAILED after 3 attempts! (namespace=%s)\n", space);
+        return false;
     }
 
     void PreferencesManager::endBatch()
