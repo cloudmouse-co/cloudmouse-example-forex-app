@@ -44,6 +44,9 @@ namespace CloudMouse::Hardware
 {
     using namespace CloudMouse::Utils;
 
+    /**
+     * custom DisplayManager callback definition
+     */
     typedef void (*AppDisplayCallback)(const CloudMouse::Event& event);
 
     class DisplayManager
@@ -55,11 +58,26 @@ namespace CloudMouse::Hardware
         void init();
         void update();
         void processEvent(const CloudMouse::Event &event);
-        
+
+        /**
+         * Register callback function for custom DislpayManager
+         * 
+         * @param callback Custom DisplayManager event process function
+         */
         void registerAppCallback(AppDisplayCallback callback) {
             appCallback = callback;
         }
 
+        // ========================================================================
+        // STATUS QUERY INTERFACE
+        // ========================================================================
+
+        /**
+         * Check if display manager is properly initialized
+         * Validates hardware initialization and sprite buffer allocation
+         *
+         * @return true if display is ready for rendering operations
+         */
         bool isReady() const { return initialized; }
         int getWidth() const { return 480; }
         int getHeight() const { return 320; }
@@ -114,7 +132,7 @@ namespace CloudMouse::Hardware
         lv_obj_t *label_ap_mode_ssid;
         lv_obj_t *label_ap_mode_pass;
 
-        AppDisplayCallback appCallback = nullptr;
+        AppDisplayCallback appCallback = nullptr;   // Custom DisplayManager callback for SDK event forwarding
 
         // ========================================================================
         // STATE MANAGEMENT VARIABLES

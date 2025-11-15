@@ -30,8 +30,17 @@ namespace CloudMouse::Prefs
         String getWiFiSSID();     // Get stored WiFi SSID
         String getWiFiPassword(); // Get stored WiFi password
 
+        // Batch operations for performance
+        bool beginBatch(const char* namespaceName, bool readOnly = false);
+        void endBatch();
+        bool isBatchOpen() const { return batchOpen; }
+        
+        // Direct save/get (assumes batch is open)
+        bool putString(const char* key, const String& value);
+        String getString(const char* key, const String& defaultValue = "");
+
         // Generic storage interface
-        void save(const char *key, const String &value); // Store any key-value pair
+        bool save(const char *key, const String &value); // Store any key-value pair
         String get(const char *key);                     // Retrieve value by key
 
         // Reset operations
@@ -40,6 +49,10 @@ namespace CloudMouse::Prefs
 
     private:
         Preferences preferences; // ESP32 NVS interface
+        
+        // Batch operations params
+        bool batchOpen = false;
+        String currentNamespace;
 
         // Configuration
         const char *space = "my-app"; // NVS namespace

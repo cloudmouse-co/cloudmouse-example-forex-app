@@ -65,11 +65,12 @@ namespace CloudMouse::Prefs
     // GENERIC STORAGE INTERFACE
     // ============================================================================
 
-    void PreferencesManager::save(const char *key, const String &value)
+    bool PreferencesManager::save(const char *key, const String &value)
     {
         begin(false);
         preferences.putString(key, value);
         end();
+        return true;
     }
 
     String PreferencesManager::get(const char *key)
@@ -78,6 +79,61 @@ namespace CloudMouse::Prefs
         String value = preferences.getString(key, "");
         end();
         return value;
+    }
+
+    // ============================================================================
+    // BATCH OPERATIONS
+    // ============================================================================
+
+    bool PreferencesManager::beginBatch(const char *namespaceName, bool readOnly)
+    {
+        if (batchOpen)
+        {
+            Serial.println("⚠️ Batch already open, closing first");
+            endBatch();
+        }
+
+        batchOpen = preferences.begin(namespaceName, readOnly);
+        if (batchOpen)
+        {
+            currentNamespace = namespaceName;
+        }
+
+        return batchOpen;
+    }
+
+    void PreferencesManager::endBatch()
+    {
+        if (!batchOpen)
+        {
+            return;
+        }
+
+        preferences.end();
+        batchOpen = false;
+        currentNamespace = "";
+    }
+
+    bool PreferencesManager::putString(const char *key, const String &value)
+    {
+        if (!batchOpen)
+        {
+            // Fallback to normal save
+            return save(key, value);
+        }
+
+        return preferences.putString(key, value.c_str());
+    }
+
+    String PreferencesManager::getString(const char *key, const String &defaultValue)
+    {
+        if (!batchOpen)
+        {
+            // Fallback to normal get
+            return get(key);
+        }
+
+        return preferences.getString(key, defaultValue.c_str());
     }
 
     // ============================================================================
