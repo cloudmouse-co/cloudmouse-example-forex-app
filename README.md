@@ -486,8 +486,7 @@ cloudmouse-example-forex-app/
 │   ├── prefs/                        # Storage
 │   │   └── PreferencesManager.*      # NVS wrapper
 │   └── forex/                        # Forex Application
-│       ├── ForexApp.*                # Main orchestrator
-│       ├── ForexEvents.h             # Custom events
+│       ├── ForexApp.*                # Main orchestrator / App events
 │       ├── services/
 │       │   ├── ForexDataService.*    # API integration
 │       │   └── ForexPreferences.*    # Configuration storage
