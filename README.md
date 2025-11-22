@@ -590,7 +590,7 @@ MIT License - See LICENSE file for details.
 
 ## 🙏 Acknowledgments
 
-Built for **[CloudMouse](https://cloudmouse.co)** devices using the CloudMouse SDK - A professional ESP32 framework for building touch-enabled IoT devices with LVGL integration.
+Built for **[CloudMouse](https://cloudmouse.co)** devices using the [CloudMouse SDK](https://github.com/cloudmouse-co/cloudmouse-sdk) - A professional ESP32 framework for building touch-enabled IoT devices with LVGL integration.
 
 **Key Technologies:**
 - [CloudMouse](https://cloudmouse.co) - Smart IoT device platform
