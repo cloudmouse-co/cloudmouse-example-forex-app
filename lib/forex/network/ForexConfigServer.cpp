@@ -186,6 +186,9 @@ namespace ForexExample
                 cached.previousClose,
                 10,
                 cached.timestamp);
+
+            instance->preferences.setAlertState(symbol, 1);
+            
             CloudMouse::EventBus::instance().sendToUI(toSDKEvent(evt));
             CloudMouse::EventBus::instance().sendToUI(toSDKEvent(ForexEventData::alertGain(symbol, 0, 0)));
         } 
@@ -210,6 +213,8 @@ namespace ForexExample
                 cached.previousClose,
                 -10,
                 cached.timestamp);
+
+            instance->preferences.setAlertState(symbol, -1);
 
             CloudMouse::EventBus::instance().sendToUI(toSDKEvent(evt));
             CloudMouse::EventBus::instance().sendToUI(toSDKEvent(ForexEventData::alertLoss(symbol, 0, 0)));
