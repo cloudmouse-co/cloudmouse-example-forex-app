@@ -77,15 +77,21 @@ namespace ForexExample
             return false;
         }
 
+        // BATCH WRITE - open once, save all, close once
+        if (!prefsManager.beginBatch(false))
+        {
+            Serial.println("❌ Failed to open batch for symbols save");
+            return false;
+        }
+
         // Save count first
-        prefsManager.save("FS_count", String(count));
+        prefsManager.putString("FS_count", String(count));
 
         // Save each symbol
         for (int i = 0; i < count; i++)
         {
             String key = "FS_" + String(i);
-            prefsManager.save(key.c_str(), symbols[i]);
-
+            prefsManager.putString(key.c_str(), symbols[i]);
             Serial.printf("💾 Symbol %d: %s\n", i, symbols[i].c_str());
         }
 
@@ -93,8 +99,10 @@ namespace ForexExample
         for (int i = count; i < 10; i++)
         {
             String key = "FS_" + String(i);
-            prefsManager.save(key.c_str(), "");
+            prefsManager.putString(key.c_str(), "");
         }
+
+        prefsManager.endBatch();
 
         // Update cache
         cachedSymbolCount = count;
@@ -157,17 +165,25 @@ namespace ForexExample
         String changeKey = buildCacheKey(symbol, "change");
         String tsKey = buildCacheKey(symbol, "ts");
 
-        // Save data
-        prefsManager.save(priceKey.c_str(), String(price, 4));
-        prefsManager.save(openKey.c_str(), String(open, 4));
-        prefsManager.save(highKey.c_str(), String(high, 4));
-        prefsManager.save(lowKey.c_str(), String(low, 4));
-        prefsManager.save(prevKey.c_str(), String(previousClose, 4));
-        prefsManager.save(changeKey.c_str(), String(changePercent, 2));
-        prefsManager.save(tsKey.c_str(), String(timestamp));
+        // BATCH WRITE - single begin/end for all operations
+        if (!prefsManager.beginBatch(false))
+        {
+            Serial.println("❌ Failed to open batch write");
+            return;
+        }
 
-        Serial.printf("💾 Cached %s: $%.2f (%.2f%%) [O:%.2f H:%.2f L:%.2f PC:%.2f] @ %u\n",
-                      symbol.c_str(), price, changePercent, open, high, low, previousClose, timestamp);
+        prefsManager.putString(priceKey.c_str(), String(price, 4));
+        prefsManager.putString(openKey.c_str(), String(open, 4));
+        prefsManager.putString(highKey.c_str(), String(high, 4));
+        prefsManager.putString(lowKey.c_str(), String(low, 4));
+        prefsManager.putString(prevKey.c_str(), String(previousClose, 4));
+        prefsManager.putString(changeKey.c_str(), String(changePercent, 2));
+        prefsManager.putString(tsKey.c_str(), String(timestamp));
+
+        prefsManager.endBatch();
+
+        Serial.printf("💾 Cached %s: $%.2f (%.2f%%) @ %u\n",
+                      symbol.c_str(), price, changePercent, timestamp);
     }
 
     CachedSymbolData ForexPreferences::getCachedData(const String &symbol)
@@ -184,14 +200,23 @@ namespace ForexExample
         String changeKey = buildCacheKey(symbol, "change");
         String tsKey = buildCacheKey(symbol, "ts");
 
-        // Retrieve data
-        String priceStr = prefsManager.get(priceKey.c_str());
-        String openStr = prefsManager.get(openKey.c_str());
-        String highStr = prefsManager.get(highKey.c_str());
-        String lowStr = prefsManager.get(lowKey.c_str());
-        String prevStr = prefsManager.get(prevKey.c_str());
-        String changeStr = prefsManager.get(changeKey.c_str());
-        String tsStr = prefsManager.get(tsKey.c_str());
+        // BATCH READ - single begin/end for all operations
+        if (!prefsManager.beginBatch(true))
+        { // true = read-only
+            Serial.println("❌ Failed to open batch read");
+            data.timestamp = 0;
+            return data;
+        }
+
+        String priceStr = prefsManager.getString(priceKey.c_str(), "");
+        String openStr = prefsManager.getString(openKey.c_str(), "");
+        String highStr = prefsManager.getString(highKey.c_str(), "");
+        String lowStr = prefsManager.getString(lowKey.c_str(), "");
+        String prevStr = prefsManager.getString(prevKey.c_str(), "");
+        String changeStr = prefsManager.getString(changeKey.c_str(), "");
+        String tsStr = prefsManager.getString(tsKey.c_str(), "");
+
+        prefsManager.endBatch();
 
         if (!priceStr.isEmpty() && !tsStr.isEmpty())
         {
@@ -222,6 +247,14 @@ namespace ForexExample
         Serial.println("🗑️ Clearing all cached symbol data...");
 
         int count = getSymbolCount();
+
+        // BATCH DELETE - open once, clear all, close once
+        if (!prefsManager.beginBatch(false))
+        {
+            Serial.println("❌ Failed to open batch for cache clear");
+            return;
+        }
+
         for (int i = 0; i < count; i++)
         {
             String symbol = getSymbol(i);
@@ -229,13 +262,23 @@ namespace ForexExample
                 continue;
 
             String priceKey = buildCacheKey(symbol, "price");
+            String openKey = buildCacheKey(symbol, "open");
+            String highKey = buildCacheKey(symbol, "high");
+            String lowKey = buildCacheKey(symbol, "low");
+            String prevKey = buildCacheKey(symbol, "prev");
             String changeKey = buildCacheKey(symbol, "change");
             String tsKey = buildCacheKey(symbol, "ts");
 
-            prefsManager.save(priceKey.c_str(), "");
-            prefsManager.save(changeKey.c_str(), "");
-            prefsManager.save(tsKey.c_str(), "");
+            prefsManager.putString(priceKey.c_str(), "");
+            prefsManager.putString(openKey.c_str(), "");
+            prefsManager.putString(highKey.c_str(), "");
+            prefsManager.putString(lowKey.c_str(), "");
+            prefsManager.putString(prevKey.c_str(), "");
+            prefsManager.putString(changeKey.c_str(), "");
+            prefsManager.putString(tsKey.c_str(), "");
         }
+
+        prefsManager.endBatch();
 
         Serial.println("✅ Cache cleared");
     }
@@ -248,19 +291,50 @@ namespace ForexExample
     {
         Serial.println("🗑️ Clearing all forex configuration...");
 
+        // BATCH CLEAR ALL - open once, clear everything, close once
+        if (!prefsManager.beginBatch(false))
+        {
+            Serial.println("❌ Failed to open batch for clearAll");
+            return;
+        }
+
         // Clear API key
-        setApiKey("");
+        prefsManager.putString("FA_key", "");
 
         // Clear symbols
-        prefsManager.save("FS_count", "0");
+        prefsManager.putString("FS_count", "0");
         for (int i = 0; i < 10; i++)
         {
             String key = "FS_" + String(i);
-            prefsManager.save(key.c_str(), "");
+            prefsManager.putString(key.c_str(), "");
         }
 
-        // Clear cache
-        clearCache();
+        // Clear cache data for all symbols
+        int count = cachedSymbolCount > 0 ? cachedSymbolCount : 10;
+        for (int i = 0; i < count; i++)
+        {
+            String symbol = getSymbol(i);
+            if (symbol.isEmpty())
+                continue;
+
+            String priceKey = buildCacheKey(symbol, "price");
+            String openKey = buildCacheKey(symbol, "open");
+            String highKey = buildCacheKey(symbol, "high");
+            String lowKey = buildCacheKey(symbol, "low");
+            String prevKey = buildCacheKey(symbol, "prev");
+            String changeKey = buildCacheKey(symbol, "change");
+            String tsKey = buildCacheKey(symbol, "ts");
+
+            prefsManager.putString(priceKey.c_str(), "");
+            prefsManager.putString(openKey.c_str(), "");
+            prefsManager.putString(highKey.c_str(), "");
+            prefsManager.putString(lowKey.c_str(), "");
+            prefsManager.putString(prevKey.c_str(), "");
+            prefsManager.putString(changeKey.c_str(), "");
+            prefsManager.putString(tsKey.c_str(), "");
+        }
+
+        prefsManager.endBatch();
 
         // Invalidate local cache
         invalidateCache();
@@ -274,7 +348,7 @@ namespace ForexExample
 
     String ForexPreferences::buildCacheKey(const String &symbol, const char *suffix) const
     {
-        // Build key like "cache_AAPL_price"
+        // Build key like "c_AAPL_price"
         return "c_" + symbol + "_" + suffix;
     }
 
@@ -305,7 +379,11 @@ namespace ForexExample
 
         prefsManager.endBatch();
 
+<<<<<<< HEAD
         Serial.printf("🔔 Alert thresholds saved successfully for %s: gain=%.2f%%, loss=%.2f%%\n",
+=======
+        Serial.printf("🔔 Alert thresholds for %s: gain=%.2f%%, loss=%.2f%%\n",
+>>>>>>> main
                       symbol.c_str(), capGain, capLoss);
     }
 

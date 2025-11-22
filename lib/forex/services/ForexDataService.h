@@ -245,7 +245,7 @@ namespace ForexExample {
          * 
          * @param eventData
          */
-        void emitEvent(const ForexEventData &eventData);
+        void notifyApp(const ForexEventData &eventData);
 
         /**
          * Calculate percentage change
@@ -255,6 +255,14 @@ namespace ForexExample {
          * @return Percentage change
          */
         float calculateChangePercent(float current, float previous) const;
+
+        /**
+         * Check and trigger alerts for Gain and Loss thresholds
+         * 
+         * @param symbol Current symbol
+         * @param changePercent current symbol change percent
+         */
+        void checkAndTriggerAlerts(const String &symbol, float changePercent);
     };
 
 } // namespace ForexExample

@@ -31,7 +31,7 @@ namespace CloudMouse::Prefs
         String getWiFiPassword(); // Get stored WiFi password
 
         // Batch operations for performance
-        bool beginBatch(const char* namespaceName, bool readOnly = false);
+        bool beginBatch(bool readOnly = false);
         void endBatch();
         bool isBatchOpen() const { return batchOpen; }
         
@@ -52,7 +52,6 @@ namespace CloudMouse::Prefs
         
         // Batch operations params
         bool batchOpen = false;
-        String currentNamespace;
 
         // Configuration
         const char *space = "my-app"; // NVS namespace

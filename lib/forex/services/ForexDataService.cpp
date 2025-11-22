@@ -6,14 +6,14 @@
 
 #include "ForexDataService.h"
 
-
 namespace ForexExample
 {
 
-    // TwelveData API base URL
+    // Production - TwelveData API base URL
     // const char *ForexDataService::API_BASE_URL = "https://api.twelvedata.com";
+
+    // Development - local mock server
     const char *ForexDataService::API_BASE_URL = "http://192.168.1.129:3000";
-    // const char *ForexDataService::API_BASE_URL = "http://192.168.90.246:3000";
 
     // ============================================================================
     // CONSTRUCTOR & INITIALIZATION
@@ -97,6 +97,9 @@ namespace ForexExample
             SymbolData data;
             if (fetchQuote(symbols[i], data))
             {
+                // check for alert triggers with fetched fresh data
+                checkAndTriggerAlerts(symbols[i], (float)data.changePercent);
+
                 // Cache the data with OHLC
                 preferences.cacheSymbolData(
                     symbols[i],
@@ -118,7 +121,7 @@ namespace ForexExample
                     data.changePercent,
                     data.timestamp);
 
-                emitEvent(evt);
+                notifyApp(evt);
 
                 Serial.printf("  ✅ %s: $%.2f (%.2f%%)\n",
                               symbols[i].c_str(),
@@ -313,7 +316,7 @@ namespace ForexExample
                 ForexEventData evt;
                 evt.type = ForexEventType::FOREX_API_RATE_LIMIT;
                 // displayManager->processForexEvent(evt);
-                emitEvent(evt);
+                notifyApp(evt);
             }
 
             return false;
@@ -410,7 +413,7 @@ namespace ForexExample
 
         // Emit error event
         ForexEventData evt = ForexEventData::apiError(errorMessage.c_str(), errorCode);
-        emitEvent(evt);
+        notifyApp(evt);
         // displayManager->processForexEvent(evt);
     }
 
@@ -461,7 +464,67 @@ namespace ForexExample
         return ((current - previous) / previous) * 100.0f;
     }
 
-    void ForexDataService::emitEvent(const ForexEventData &eventData) 
+    void ForexDataService::checkAndTriggerAlerts(const String &symbol, float changePercent)
+    {
+        // Get thresholds
+        float capGain = preferences.getCapGain(symbol);
+        float capLoss = preferences.getCapLoss(symbol);
+
+        // Get current alert state
+        int currentState = preferences.getAlertState(symbol);
+
+        // Determine new state based on changePercent
+        int newState = 0; // 0 = normal
+
+        if (changePercent >= capGain)
+        {
+            newState = 1; // Gain alert
+        }
+        else if (changePercent <= capLoss)
+        {
+            newState = -1; // Loss alert
+        }
+
+        // Check for state transitions (crossing detection)
+        if (newState != currentState)
+        {
+
+            if (newState == 1)
+            {
+                // Just crossed GAIN threshold
+                Serial.printf("🚀 GAIN ALERT: %s at %.2f%% (threshold: %.2f%%)",
+                           symbol.c_str(), changePercent, capGain);
+
+                ForexEventData evt = ForexEventData::alertGain(symbol, changePercent, capGain);
+                notifyApp(evt); // Notify ForexApp
+            }
+            else if (newState == -1)
+            {
+                // Just crossed LOSS threshold
+                Serial.printf("📉 LOSS ALERT: %s at %.2f%% (threshold: %.2f%%)",
+                           symbol.c_str(), changePercent, capLoss);
+
+                ForexEventData evt = ForexEventData::alertLoss(symbol, changePercent, capLoss);
+                notifyApp(evt);
+            }
+            else
+            {
+                // Returned to normal
+                if (currentState != 0)
+                {
+                    Serial.printf("✅ Alert cleared for %s (%.2f%%)", symbol.c_str(), changePercent);
+
+                    ForexEventData evt = ForexEventData::alertCleared(symbol);
+                    notifyApp(evt);
+                }
+            }
+
+            // Update state
+            preferences.setAlertState(symbol, newState);
+        }
+    }
+
+    void ForexDataService::notifyApp(const ForexEventData &eventData)
     {
         CloudMouse::EventBus::instance().sendToUI(toSDKEvent(eventData));
     }

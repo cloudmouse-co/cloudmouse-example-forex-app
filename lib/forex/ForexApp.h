@@ -89,6 +89,11 @@ namespace ForexExample
         FOREX_ENCODER_LONG_PRESS = 42,
 
         FOREX_CONFIG_UPDATED = 50,
+
+        // Alert events
+        FOREX_ALERT_GAIN = 60,    // Gain threshold crossed
+        FOREX_ALERT_LOSS = 61,    // Loss threshold crossed
+        FOREX_ALERT_CLEARED = 62, // Alert cleared (back to normal)
     };
 
     /**
@@ -112,7 +117,7 @@ namespace ForexExample
         float low;
         float previousClose;
         float changePercent; // Percentage change
-        uint32_t timestamp;   // Unix timestamp
+        uint32_t timestamp;  // Unix timestamp
 
         ForexEventData() : type(ForexEventType::FOREX_CONFIG_NEEDED),
                            value(0), price(0.0f), open(0.0f), high(0.0f),
@@ -162,31 +167,59 @@ namespace ForexExample
             evt.value = errorCode;
             return evt;
         }
+
+        static ForexEventData alertGain(const String &symbol, float changePercent, float threshold)
+        {
+            ForexEventData evt;
+            evt.type = ForexEventType::FOREX_ALERT_GAIN;
+            strncpy(evt.stringData, symbol.c_str(), sizeof(evt.stringData) - 1);
+            evt.price = changePercent;
+            evt.changePercent = threshold;
+            return evt;
+        }
+
+        static ForexEventData alertLoss(const String &symbol, float changePercent, float threshold)
+        {
+            ForexEventData evt;
+            evt.type = ForexEventType::FOREX_ALERT_LOSS;
+            strncpy(evt.stringData, symbol.c_str(), sizeof(evt.stringData) - 1);
+            evt.price = changePercent;
+            evt.changePercent = threshold;
+            return evt;
+        }
+
+        static ForexEventData alertCleared(const String &symbol)
+        {
+            ForexEventData evt;
+            evt.type = ForexEventType::FOREX_ALERT_CLEARED;
+            strncpy(evt.stringData, symbol.c_str(), sizeof(evt.stringData) - 1);
+            return evt;
+        }
     };
 
-
     // Helper to convert ForexEventType to SDK Event with offset
-    inline CloudMouse::Event toSDKEvent(const ForexEventData& forexEvent) {
+    inline CloudMouse::Event toSDKEvent(const ForexEventData &forexEvent)
+    {
         CloudMouse::Event sdkEvent;
         sdkEvent.type = static_cast<CloudMouse::EventType>(
-            static_cast<int>(forexEvent.type) + 100
-        );
+            static_cast<int>(forexEvent.type) + 100);
         sdkEvent.value = forexEvent.value;
         strncpy(sdkEvent.stringData, forexEvent.stringData, sizeof(sdkEvent.stringData) - 1);
         return sdkEvent;
     }
-    
+
     // Helper to check if SDK event is actually a Forex event
-    inline bool isForexEvent(const CloudMouse::Event& sdkEvent) {
+    inline bool isForexEvent(const CloudMouse::Event &sdkEvent)
+    {
         return static_cast<int>(sdkEvent.type) >= 100;
     }
-    
+
     // Helper to convert SDK Event back to ForexEventData
-    inline ForexEventData toForexEvent(const CloudMouse::Event& sdkEvent) {
+    inline ForexEventData toForexEvent(const CloudMouse::Event &sdkEvent)
+    {
         ForexEventData forexEvent;
         forexEvent.type = static_cast<ForexEventType>(
-            static_cast<int>(sdkEvent.type) - 100
-        );
+            static_cast<int>(sdkEvent.type) - 100);
         forexEvent.value = sdkEvent.value;
         strncpy(forexEvent.stringData, sdkEvent.stringData, sizeof(forexEvent.stringData) - 1);
         forexEvent.price = sdkEvent.value;
@@ -200,13 +233,13 @@ namespace ForexExample
      */
     enum class ForexAppState
     {
-        INITIALIZING,      // App starting up
-        WIFI_READY,        // WiFi connected, checking config
-        CONFIG_NEEDED,     // No API key or symbols configured
-        READY,             // Configuration valid, ready to start
-        POLLING_ACTIVE,    // Market open, actively polling
-        POLLING_PAUSED,    // Market closed, using cache
-        ERROR              // Fatal error state
+        INITIALIZING,   // App starting up
+        WIFI_READY,     // WiFi connected, checking config
+        CONFIG_NEEDED,  // No API key or symbols configured
+        READY,          // Configuration valid, ready to start
+        POLLING_ACTIVE, // Market open, actively polling
+        POLLING_PAUSED, // Market closed, using cache
+        ERROR           // Fatal error state
     };
 
     /**

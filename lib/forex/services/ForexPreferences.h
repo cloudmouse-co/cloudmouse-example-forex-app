@@ -28,6 +28,8 @@
 #include <Arduino.h>
 #include "../../../lib/prefs/PreferencesManager.h"
 
+#define FOREX_NAMESPACE "forex-app"
+
 namespace ForexExample
 {
 
@@ -45,7 +47,7 @@ namespace ForexExample
         float changePercent;
         uint32_t timestamp;
 
-        CachedSymbolData() : price(0.0f), changePercent(0.0f), timestamp(0) {}  
+        CachedSymbolData() : price(0.0f), changePercent(0.0f), timestamp(0) {}
 
         bool isValid() const
         {
@@ -138,6 +140,51 @@ namespace ForexExample
          * @return Symbol string (empty if invalid index)
          */
         String getSymbol(int index);
+
+        // ====================================================================
+        // ALERT THRESHOLDS MANAGEMENT
+        // ====================================================================
+
+        /**
+         * Set alert thresholds for a symbol
+         *
+         * @param symbol Symbol name (e.g. "AAPL")
+         * @param capGain Gain threshold percentage (e.g. 5.0 for +5%)
+         * @param capLoss Loss threshold percentage (e.g. -3.0 for -3%)
+         */
+        void setAlertThresholds(const String &symbol, float capGain, float capLoss);
+
+        /**
+         * Get gain threshold for a symbol
+         *
+         * @param symbol Symbol name
+         * @return Gain threshold (default 5.0%)
+         */
+        float getCapGain(const String &symbol);
+
+        /**
+         * Get loss threshold for a symbol
+         *
+         * @param symbol Symbol name
+         * @return Loss threshold (default -5.0%)
+         */
+        float getCapLoss(const String &symbol);
+
+        /**
+         * Get alert state for a symbol
+         * Returns: 0 = normal, 1 = gain alert active, -1 = loss alert active
+         */
+        int getAlertState(const String &symbol);
+
+        /**
+         * Set alert state for a symbol
+         */
+        void setAlertState(const String &symbol, int state);
+
+        /**
+         * Reset alert state (back to normal)
+         */
+        void resetAlertState(const String &symbol);
 
         // ====================================================================
         // CACHE MANAGEMENT

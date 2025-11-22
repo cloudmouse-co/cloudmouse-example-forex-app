@@ -85,7 +85,7 @@ namespace CloudMouse::Prefs
     // BATCH OPERATIONS
     // ============================================================================
 
-    bool PreferencesManager::beginBatch(const char *namespaceName, bool readOnly)
+    bool PreferencesManager::beginBatch(bool readOnly)
     {
         if (batchOpen)
         {
@@ -93,13 +93,26 @@ namespace CloudMouse::Prefs
             endBatch();
         }
 
-        batchOpen = preferences.begin(namespaceName, readOnly);
-        if (batchOpen)
+        // Try up to 3 times with small delay
+        for (int attempt = 0; attempt < 3; attempt++)
         {
-            currentNamespace = namespaceName;
+            batchOpen = preferences.begin(space, readOnly);
+
+            if (batchOpen)
+            {
+                if (attempt > 0)
+                {
+                    Serial.printf("✅ Batch opened on attempt %d\n", attempt + 1);
+                }
+                return true;
+            }
+
+            Serial.printf("⚠️ Batch open failed (attempt %d/3), retrying...\n", attempt + 1);
+            delay(10); // Small delay before retry
         }
 
-        return batchOpen;
+        Serial.printf("❌ Batch open FAILED after 3 attempts! (namespace=%s)\n", space);
+        return false;
     }
 
     void PreferencesManager::endBatch()
@@ -111,7 +124,6 @@ namespace CloudMouse::Prefs
 
         preferences.end();
         batchOpen = false;
-        currentNamespace = "";
     }
 
     bool PreferencesManager::putString(const char *key, const String &value)
