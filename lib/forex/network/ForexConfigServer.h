@@ -26,7 +26,7 @@
  * - GET  /forex          - Main configuration page
  * - POST /forex/config   - Save configuration
  * - GET  /forex/status   - Get current status (JSON)
- * - POST /forex/test     - Test API key
+ * - POST /forex/test-api     - Test API key
  * - POST /forex/clear    - Clear all configuration
  * 
  * Security Considerations:
@@ -169,7 +169,7 @@ namespace ForexExample {
         
         /**
          * Test API key validity
-         * POST /forex/test
+         * POST /forex/test-api
          * 
          * Makes a test API call to validate the key.
          * 
@@ -187,6 +187,19 @@ namespace ForexExample {
          */
         static void handleClearConfig();
         
+
+        /**
+         * Test page for alerts 
+         * GET /forex/test
+         */
+        static void handleTestPage();
+
+        /**
+         * Handle test alerts submission
+         * POST /forex/test-alerts
+         */
+        static void handleTestSubmit();
+
         // ====================================================================
         // HTML GENERATION
         // ====================================================================
@@ -213,6 +226,13 @@ namespace ForexExample {
          * Generate JavaScript for form handling
          */
         String generateJS();
+
+        /**
+         * Generate complete HTML alerts testing page
+         * 
+         * @return HTML string
+         */
+        String generateTestPage();
         
         // ====================================================================
         // HELPER METHODS

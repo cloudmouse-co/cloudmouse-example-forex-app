@@ -37,8 +37,11 @@ namespace ForexExample
         webServer->on("/forex", HTTP_GET, handleConfigPage);
         webServer->on("/forex/config", HTTP_POST, handleConfigSubmit);
         webServer->on("/forex/status", HTTP_GET, handleStatusRequest);
-        webServer->on("/forex/test", HTTP_POST, handleTestApi);
+        webServer->on("/forex/test-api", HTTP_POST, handleTestApi);
         webServer->on("/forex/clear", HTTP_POST, handleClearConfig);
+
+        webServer->on("/forex/test", HTTP_GET, handleTestPage);
+        webServer->on("/forex/test/submit", HTTP_POST, handleTestSubmit);
 
         webServer->on("/", HTTP_GET, []()
                       {
@@ -89,6 +92,133 @@ namespace ForexExample
 
         String html = instance->generateConfigPage();
         instance->webServer->send(200, "text/html", html);
+    }
+
+    void ForexConfigServer::handleTestPage()
+    {
+        if (!instance)
+            return;
+
+        Serial.println("Serving test page");
+
+        String html = instance->generateTestPage();
+        instance->webServer->send(200, "text/html", html);
+    }
+
+    String ForexConfigServer::generateTestPage()
+    {
+        String html = "<!DOCTYPE html><html><head>";
+        html += "<meta charset=\"UTF-8\">";
+        html += "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">";
+        html += "<title>CloudMouse Forex Alert Testing</title>";
+        html += "<style>";
+        html += generateCSS();
+        html += "</style></head><body>";
+        html += "<div class=\"container\">";
+        html += "<h1>CloudMouse Forex Alert System Testing</h1>";
+
+        html += "<div class=\"card\">";
+        html += "<h2>Alert system testing</h2>";
+        html += "<p class=\"help\">You can test here a loss or gain alert by clicking on buttons below.</p>";
+        html += "<div id=\"symbol-list\">";
+
+        String symbols[10];
+        int count = preferences.getSymbols(symbols);
+
+        for (int i = 0; i < count; i++)
+        {
+            html += "<div class=\"symbol-row\" style='flex-direction:row; justify-content: space-between; align-items: center'>";
+            html += "<h3>" + symbols[i] + "</h3>";
+            html += "<div style='display: flex; justify-conten: flex-end; align-items: center'>";
+            html += "<button style='margin-right: 10px;' data-rel=\"" + symbols[i] + "\" onclick=\"testLoss(this)\" class=\"btn-remove\">Test LOSS</button> <button data-rel=\"" + symbols[i] + "\" onclick=\"testGain(this)\" class=\"btn-remove btn-success\">Test GAIN</button>";
+            html += "</div>";
+            html += "</div>";
+        }
+
+        if (count == 0)
+        {
+            html += "<div class=\"symbol-row\">";
+            html += "<h3>No symbols found</h3>";
+            html += "</div>";
+        }
+
+        html += "<div id=\"message\" class=\"message\"></div>";
+        html += "</div>";
+
+        html += "<script>";
+        html += "async function testLoss(e){const a='symbol='+e.dataset.rel+'&test=loss';try{const t=await fetch('/forex/test/submit',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:a});const j=await t.json();console.log(j);}catch(err){console.log(err.message)}}";        
+        html += "async function testGain(e){const a='symbol='+e.dataset.rel+'&test=gain';try{const t=await fetch('/forex/test/submit',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:a});const j=await t.json();console.log(j);}catch(err){console.log(err.message)}}";
+        html += "</script>";
+        html += "<style>.btn-success { background: green !important; }</style>";
+        html += "</body></html>";
+
+        return html;
+    }
+
+    void ForexConfigServer::handleTestSubmit()
+    {
+        if (!instance)
+            return;
+
+        String symbol = instance->webServer->arg("symbol");
+        String testType = instance->webServer->arg("test");
+
+        CachedSymbolData cached = instance->preferences.getCachedData(symbol);
+
+        if (testType.equals("gain")) 
+        {
+            instance->preferences.cacheSymbolData(
+                symbol,
+                cached.price,
+                cached.open,
+                cached.high,
+                cached.low,
+                cached.previousClose,
+                10,
+                cached.timestamp);
+
+            ForexEventData evt = ForexEventData::dataUpdated(
+                symbol.c_str(),
+                cached.price,
+                cached.open,
+                cached.high,
+                cached.low,
+                cached.previousClose,
+                10,
+                cached.timestamp);
+            CloudMouse::EventBus::instance().sendToUI(toSDKEvent(evt));
+            CloudMouse::EventBus::instance().sendToUI(toSDKEvent(ForexEventData::alertGain(symbol, 0, 0)));
+        } 
+        else 
+        {
+            instance->preferences.cacheSymbolData(
+                symbol,
+                cached.price,
+                cached.open,
+                cached.high,
+                cached.low,
+                cached.previousClose,
+                -10,
+                cached.timestamp);
+
+            ForexEventData evt = ForexEventData::dataUpdated(
+                symbol.c_str(),
+                cached.price,
+                cached.open,
+                cached.high,
+                cached.low,
+                cached.previousClose,
+                -10,
+                cached.timestamp);
+
+            CloudMouse::EventBus::instance().sendToUI(toSDKEvent(evt));
+            CloudMouse::EventBus::instance().sendToUI(toSDKEvent(ForexEventData::alertLoss(symbol, 0, 0)));
+        }
+
+        Serial.printf("Handling request for \"%s\" symbol, test type \"%s\"", symbol, testType);
+        Serial.println("");
+
+        instance->sendJsonResponse(true, "Test request received!");
     }
 
     void ForexConfigServer::handleConfigSubmit()
@@ -359,7 +489,7 @@ namespace ForexExample
         return "function showMessage(t,e){const s=document.getElementById('message');s.textContent=t,s.className='message '+e,setTimeout(()=>{s.style.display='none'},5e3)}"
             "function addSymbol(){const t=document.getElementById('symbol-list'),e=t.getElementsByClassName('symbol-row');if(e.length>=10)return void showMessage('Maximum 10 symbols allowed','error');const s=document.createElement('div');s.className='symbol-row',s.innerHTML='<input type=\"text\" class=\"symbol-input\" placeholder=\"SYMBOL\" maxlength=\"10\"><button onclick=\"removeSymbol(this)\" class=\"btn-remove\">X</button><div class=\"threshold-group\"><label>Gain Alert (%):</label><input type=\"number\" class=\"gain-input\" value=\"5.0\" step=\"0.1\" min=\"0\" max=\"100\"><label>Loss Alert (%):</label><input type=\"number\" class=\"loss-input\" value=\"-5.0\" step=\"0.1\" min=\"-100\" max=\"0\"></div>',t.appendChild(s)}"
             "function removeSymbol(t){const e=document.getElementById('symbol-list').getElementsByClassName('symbol-row');return e.length<=1?void showMessage('At least one symbol required','error'):void t.parentElement.remove()}"
-            "async function testApiKey(){const t=document.getElementById('api_key').value.trim();if(!t)return void showMessage('Please enter an API key','error');showMessage('Testing API key...','success');try{const e=await fetch('/forex/test',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'api_key='+encodeURIComponent(t)}),s=await e.json();showMessage(s.message,s.success?'success':'error')}catch(t){showMessage('Test failed: '+t.message,'error')}}"
+            "async function testApiKey(){const t=document.getElementById('api_key').value.trim();if(!t)return void showMessage('Please enter an API key','error');showMessage('Testing API key...','success');try{const e=await fetch('/forex/test-api',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'api_key='+encodeURIComponent(t)}),s=await e.json();showMessage(s.message,s.success?'success':'error')}catch(t){showMessage('Test failed: '+t.message,'error')}}"
             "async function saveConfig(){const t=document.getElementById('api_key').value.trim();if(!t)return void showMessage('Please enter an API key','error');const e=document.getElementsByClassName('symbol-row'),s=[],o=[],n=[];for(let t of e){const e=t.querySelector('.symbol-input'),a=t.querySelector('.gain-input'),r=t.querySelector('.loss-input'),i=e.value.trim().toUpperCase();i&&(s.push(i),o.push(a?a.value:'5.0'),n.push(r?r.value:'-5.0'))}if(0===s.length)return void showMessage('Please add at least one symbol','error');let a='api_key='+encodeURIComponent(t);a+='&symbol_count='+s.length;for(let t=0;t<s.length;t++)a+='&symbol_'+t+'='+encodeURIComponent(s[t]),a+='&gain_'+encodeURIComponent(s[t])+'='+encodeURIComponent(o[t]),a+='&loss_'+encodeURIComponent(s[t])+'='+encodeURIComponent(n[t]);try{const t=await fetch('/forex/config',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:a}),e=await t.json();showMessage(e.message,e.success?'success':'error'),e.success&&setTimeout(()=>{location.reload()},2e3)}catch(t){showMessage('Save failed: '+t.message,'error')}}"
             "async function clearConfig(){if(!confirm('Are you sure you want to clear all configuration?'))return;try{const t=await fetch('/forex/clear',{method:'POST'}),e=await t.json();showMessage(e.message,e.success?'success':'error'),e.success&&setTimeout(()=>{location.reload()},1500)}catch(t){showMessage('Clear failed: '+t.message,'error')}}";
     }
