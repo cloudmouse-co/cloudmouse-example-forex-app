@@ -452,7 +452,7 @@ API Response → JSON Parse → Data Validation → Cache Save → Alert Check �
 **Configuration Interface:**
 - `GET /forex` - Main configuration page with current settings
 - `POST /forex/config` - Save configuration (symbols, API key, alert thresholds)
-- `POST /forex/test` - Validate API key against TwelveData
+- `POST /forex/test-api` - Validate API key against TwelveData
 - `POST /forex/clear` - Clear all settings and reset to defaults
 
 **Status API:**
@@ -467,6 +467,10 @@ API Response → JSON Parse → Data Validation → Cache Save → Alert Check �
   "symbols": ["GPRO", "NVIDIA", "MSFT", "AAPL", "GOOGL"]
 }
 ```
+
+**Testing alert system**
+- `GET /forex/test` - Main alert system testing
+- `POST /forex/test/submit` - Service to test a gain/loss alert for a symbol
 
 **Use Cases:**
 - **Home automation integration** - Poll `/forex/status` to check device configuration
