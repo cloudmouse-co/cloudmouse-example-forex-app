@@ -379,11 +379,7 @@ namespace ForexExample
 
         prefsManager.endBatch();
 
-<<<<<<< HEAD
         Serial.printf("🔔 Alert thresholds saved successfully for %s: gain=%.2f%%, loss=%.2f%%\n",
-=======
-        Serial.printf("🔔 Alert thresholds for %s: gain=%.2f%%, loss=%.2f%%\n",
->>>>>>> main
                       symbol.c_str(), capGain, capLoss);
     }
 
