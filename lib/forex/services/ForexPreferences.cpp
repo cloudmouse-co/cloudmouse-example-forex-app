@@ -285,4 +285,68 @@ namespace ForexExample
         cacheValid = false;
     }
 
+    // ============================================================================
+    // ALERT THRESHOLDS MANAGEMENT
+    // ============================================================================
+
+    void ForexPreferences::setAlertThresholds(const String &symbol, float capGain, float capLoss)
+    {
+        String gainKey = "AL_" + symbol + "_gain";
+        String lossKey = "AL_" + symbol + "_loss";
+
+        if (!prefsManager.beginBatch(false))
+        {
+            Serial.println("❌ Failed to open batch for alert thresholds");
+            return;
+        }
+
+        prefsManager.putString(gainKey.c_str(), String(capGain, 2));
+        prefsManager.putString(lossKey.c_str(), String(capLoss, 2));
+
+        prefsManager.endBatch();
+
+        Serial.printf("🔔 Alert thresholds saved successfully for %s: gain=%.2f%%, loss=%.2f%%\n",
+                      symbol.c_str(), capGain, capLoss);
+    }
+
+    float ForexPreferences::getCapGain(const String &symbol)
+    {
+        String gainKey = "AL_" + symbol + "_gain";
+        String gainStr = prefsManager.get(gainKey.c_str());
+
+        // Default to +5% if not set
+        return gainStr.isEmpty() ? 5.0 : gainStr.toFloat();
+    }
+
+    float ForexPreferences::getCapLoss(const String &symbol)
+    {
+        String lossKey = "AL_" + symbol + "_loss";
+        String lossStr = prefsManager.get(lossKey.c_str());
+
+        // Default to -5% if not set
+        return lossStr.isEmpty() ? -5.0 : lossStr.toFloat();
+    }
+
+    int ForexPreferences::getAlertState(const String &symbol)
+    {
+        String stateKey = "AL_" + symbol + "_state";
+        String stateStr = prefsManager.get(stateKey.c_str());
+
+        // Default to 0 (normal)
+        return stateStr.isEmpty() ? 0 : stateStr.toInt();
+    }
+
+    void ForexPreferences::setAlertState(const String &symbol, int state)
+    {
+        String stateKey = "AL_" + symbol + "_state";
+        prefsManager.save(stateKey.c_str(), String(state));
+
+        Serial.printf("🔔 Alert state for %s: %d\n", symbol.c_str(), state);
+    }
+
+    void ForexPreferences::resetAlertState(const String &symbol)
+    {
+        setAlertState(symbol, 0);
+    }
+
 } // namespace ForexExample
