@@ -10,10 +10,10 @@ namespace ForexExample
 {
 
     // Production - TwelveData API base URL
-    // const char *ForexDataService::API_BASE_URL = "https://api.twelvedata.com";
+    const char *ForexDataService::API_BASE_URL = "https://api.twelvedata.com";
 
     // Development - local mock server
-    const char *ForexDataService::API_BASE_URL = "http://192.168.1.129:3000";
+    // const char *ForexDataService::API_BASE_URL = "http://<YOUR-LOCAL-IP>:3000";
 
     // ============================================================================
     // CONSTRUCTOR & INITIALIZATION
