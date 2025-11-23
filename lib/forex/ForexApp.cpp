@@ -125,15 +125,15 @@ namespace ForexExample
             else if (currentState == ForexAppState::POLLING_PAUSED)
             {
                 // Market is closed - only poll if cache is stale
-                if (!dataService->hasFreshCache())
-                {
-                    APP_LOGGER("🔄 Cache stale - refreshing data");
-                    shouldPoll = true;
-                }
-                else
-                {
+                // if (!dataService->hasFreshCache())
+                // {
+                //     APP_LOGGER("🔄 Cache stale - refreshing data");
+                //     shouldPoll = true;
+                // }
+                // else
+                // {
                     APP_LOGGER("📦 Cache fresh - skipping poll");
-                }
+                // }
             }
 
             if (shouldPoll)

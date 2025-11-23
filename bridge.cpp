@@ -9,3 +9,8 @@
 #include "lib/utils/NTPManager.cpp"
 #include "lib/utils/QRCodeManager.cpp"
 #include "lib/prefs/PreferencesManager.cpp"
+#include "lib/forex/ForexApp.cpp"
+#include "lib/forex/ui/ForexDisplayManager.cpp"
+#include "lib/forex/services/ForexDataService.cpp"
+#include "lib/forex/services/ForexPreferences.cpp"
+#include "lib/forex/network/ForexConfigServer.cpp"

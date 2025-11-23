@@ -18,8 +18,10 @@
 #include "lib/network/WiFiManager.h"
 #include "lib/network/WebServerManager.h"
 #include "lib/hardware/LEDManager.h"
+#include "lib/forex/ForexApp.h"
 
 using namespace CloudMouse;
+using namespace ForexExample;
 
 // Hardware component instances
 EncoderManager encoder;
@@ -28,16 +30,8 @@ WiFiManager wifi;
 WebServerManager webServer(wifi);
 LEDManager ledManager;
 
-Ticker lvgl_ticker;
-
-/**
- * @brief Callback del Ticker per LVGL.
- * Questa funzione è un "Interrupt Service Routine" (ISR) leggero.
- * DEVE essere globale o statica.
- */
-void lv_tick_task(void) {
-    lv_tick_inc(5); // 3. Informa LVGL che sono passati 5ms
-}
+// Forex Components
+ForexApp forexApp;
 
 void setup() {
     Serial.begin(115200);
@@ -45,8 +39,7 @@ void setup() {
 
     // Welcome message
     Serial.println();
-    Serial.println("🚀 CloudMouse SDK Boilerplate v1.0");
-    Serial.println("   Ready to build something amazing! 🎯");
+    Serial.println("CloudMouse Forex App v1.0");
     
     // Initialize hardware components
     SimpleBuzzer::init();
@@ -60,13 +53,13 @@ void setup() {
     Core::instance().setWiFi(&wifi);
     Core::instance().setWebServer(&webServer);
     Core::instance().setLEDManager(&ledManager);
+    // Register Forex App into core
+    Core::instance().setForexApp(&forexApp);
 
     // Start dual-core operation
     Core::instance().startUITask();     // UI rendering on Core 1
     Core::instance().initialize();      // Event system on Core 0
     
-    lvgl_ticker.attach_ms(5, lv_tick_task);
-
     Serial.println("✅ System ready!");
 }
 
