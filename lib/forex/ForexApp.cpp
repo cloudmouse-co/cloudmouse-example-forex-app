@@ -44,7 +44,7 @@ namespace ForexExample
     // INITIALIZATION
     // ============================================================================
 
-    bool ForexApp::init()
+    bool ForexApp::initialize()
     {
         if (inited)
         {

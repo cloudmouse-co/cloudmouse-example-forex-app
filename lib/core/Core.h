@@ -48,7 +48,7 @@ namespace CloudMouse
     /**
      * App orchestrator initialization
      */
-    virtual bool init() = 0;
+    virtual bool initialize() = 0;
 
     /**
      * App Orchestrator update loop
@@ -116,77 +116,76 @@ namespace CloudMouse
     void setWebServer(WebServerManager *webServer) { this->webServer = webServer; }
     void setLEDManager(LEDManager *ledManager) { this->ledManager = ledManager; }
 
-  // Hardware components getters
-  EncoderManager *getEncoder() const { return encoder; }
-  DisplayManager *getDisplay() const { return display; }
-  WiFiManager *getWiFi() const { return wifi; }
-  WebServerManager *getWebServer() const { return webServer; }
-  LEDManager *getLEDManager() const { return ledManager; }
+    // Hardware components getters
+    EncoderManager *getEncoder() const { return encoder; }
+    DisplayManager *getDisplay() const { return display; }
+    WiFiManager *getWiFi() const { return wifi; }
+    WebServerManager *getWebServer() const { return webServer; }
+    LEDManager *getLEDManager() const { return ledManager; }
 
-  // State management
-  SystemState getState() const { return currentState; }
-  void setState(SystemState state);
+    // State management
+    SystemState getState() const { return currentState; }
+    void setState(SystemState state);
 
-  /**
-   * Register custom App orchestrator
-   * @param orchestrator Pointer to app that implements IAppOrchestrator
-   */
-  void setAppOrchestrator(IAppOrchestrator *orchestrator)
-  {
-    appOrchestrator = orchestrator;
-  }
+    /**
+     * Register custom App orchestrator
+     * @param orchestrator Pointer to app that implements IAppOrchestrator
+     */
+    void setAppOrchestrator(IAppOrchestrator *orchestrator)
+    {
+      appOrchestrator = orchestrator;
+    }
 
-private:
-  // Singleton pattern enforcement
-  Core() = default;
-  ~Core() = default;
-  Core(const Core &) = delete;
-  Core &operator=(const Core &) = delete;
+  private:
+    // Singleton pattern enforcement
+    Core() = default;
+    ~Core() = default;
+    Core(const Core &) = delete;
+    Core &operator=(const Core &) = delete;
 
-  // System state tracking
-  SystemState currentState = SystemState::BOOTING;
-  uint32_t stateStartTime = 0;
+    // System state tracking
+    SystemState currentState = SystemState::BOOTING;
+    uint32_t stateStartTime = 0;
 
-  // Configuration
-  bool wifiRequired = true;
+    // Configuration
+    bool wifiRequired = true;
 
-  // Hardware component references
-  EncoderManager *encoder = nullptr;
-  DisplayManager *display = nullptr;
-  WiFiManager *wifi = nullptr;
-  WebServerManager *webServer = nullptr;
-  LEDManager *ledManager = nullptr;
+    // Hardware component references
+    EncoderManager *encoder = nullptr;
+    DisplayManager *display = nullptr;
+    WiFiManager *wifi = nullptr;
+    WebServerManager *webServer = nullptr;
+    LEDManager *ledManager = nullptr;
 
-  // Forex app
-  // ForexExample::ForexApp *forexApp = nullptr;
-  IAppOrchestrator *appOrchestrator = nullptr;
+    // App orchestrator reference
+    IAppOrchestrator *appOrchestrator = nullptr;
 
-  // System services
-  PreferencesManager prefs;
-  TaskHandle_t uiTaskHandle = nullptr;
+    // System services
+    PreferencesManager prefs;
+    TaskHandle_t uiTaskHandle = nullptr;
 
-  // Performance monitoring
-  uint32_t coordinationCycles = 0;
-  uint32_t eventsProcessed = 0;
-  uint32_t lastHealthCheck = 0;
+    // Performance monitoring
+    uint32_t coordinationCycles = 0;
+    uint32_t eventsProcessed = 0;
+    uint32_t lastHealthCheck = 0;
 
-  // FreeRTOS task functions
-  static void uiTaskFunction(void *param);
-  void runUITask();
+    // FreeRTOS task functions
+    static void uiTaskFunction(void *param);
+    void runUITask();
 
-  // State machine handlers
-  void handleBootingState();
-  void handleWiFiConnection();
+    // State machine handlers
+    void handleBootingState();
+    void handleWiFiConnection();
 
-  // Event processing system
-  void processEvents();
-  void processSerialCommands();
-  void handleEncoderRotation(const Event &event);
-  void handleEncoderClick(const Event &event);
-  void handleEncoderLongPress(const Event &event);
+    // Event processing system
+    void processEvents();
+    void processSerialCommands();
+    void handleEncoderRotation(const Event &event);
+    void handleEncoderClick(const Event &event);
+    void handleEncoderLongPress(const Event &event);
 
-  // System health monitoring
-  void checkHealth();
-};
+    // System health monitoring
+    void checkHealth();
+  };
 
 } // namespace CloudMouse

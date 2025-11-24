@@ -283,7 +283,7 @@ namespace ForexExample
          *
          * @return true if initialization successful
          */
-        bool init() override;
+        bool initialize() override;
 
         /**
          * Main update loop - call from Arduino loop()
