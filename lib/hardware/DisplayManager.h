@@ -175,5 +175,12 @@ namespace CloudMouse::Hardware
         
         void wakeUp();
         void handleDimmer();
+
+        void printPerformanceStats();
+
+        lv_obj_t* perfLabel = nullptr;
+    
+        void createPerformanceLabel();
+        void updatePerformanceLabel();
     };
 };

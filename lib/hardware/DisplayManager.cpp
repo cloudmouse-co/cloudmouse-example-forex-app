@@ -16,13 +16,13 @@ namespace CloudMouse::Hardware
     // CONSTRUCTOR AND DESTRUCTOR IMPLEMENTATION
     // ============================================================================
 
-    DisplayManager::DisplayManager() : disp(nullptr), indev(nullptr) { }
+    DisplayManager::DisplayManager() : disp(nullptr), indev(nullptr) {}
 
     DisplayManager::~DisplayManager()
     {
         if (buf1)
         {
-            free(buf1); 
+            free(buf1);
             buf1 = nullptr;
         }
         if (buf2)
@@ -31,10 +31,12 @@ namespace CloudMouse::Hardware
             buf2 = nullptr;
         }
 
-        if (indev) lv_indev_delete(indev);
-        if (disp) lv_display_delete(disp);
-        
-        lvgl_ticker.detach(); 
+        if (indev)
+            lv_indev_delete(indev);
+        if (disp)
+            lv_display_delete(disp);
+
+        lvgl_ticker.detach();
 
         lv_deinit();
     }
@@ -66,7 +68,6 @@ namespace CloudMouse::Hardware
         }
         Serial.printf("✅ Buffer LVGL allocated in PSRAM (2x %d bytes)\n", sizeof(lv_color_t) * bufSize);
 
-
         // Flushing PSRAM buffers to prevent residual corrupted data on power disconnection
         const size_t totalBufBytes = sizeof(lv_color_t) * bufSize;
 
@@ -77,19 +78,22 @@ namespace CloudMouse::Hardware
 
         // LVGL display driver init (v9)
         disp = lv_display_create(getWidth(), getHeight());
-        if (disp == NULL) {
-             Serial.println("❌ LVGL display creation failed!");
-             return;
+        if (disp == NULL)
+        {
+            Serial.println("❌ LVGL display creation failed!");
+            return;
         }
         lv_display_set_flush_cb(disp, lvgl_flush_cb);
         lv_display_set_buffers(disp, buf1, buf2, bufSize * sizeof(lv_color_t), LV_DISPLAY_RENDER_MODE_PARTIAL);
         lv_display_set_user_data(disp, this);
-        
+        lv_display_set_render_mode(disp, LV_DISPLAY_RENDER_MODE_PARTIAL);
+
         // LVGL input (Encoder) driver init (v9)
         indev = lv_indev_create();
-        if (indev == NULL) {
-             Serial.println("❌ LVGL indev init failed!");
-             return;
+        if (indev == NULL)
+        {
+            Serial.println("❌ LVGL indev init failed!");
+            return;
         }
         lv_indev_set_type(indev, LV_INDEV_TYPE_ENCODER);
         lv_indev_set_read_cb(indev, lvgl_encoder_read_cb);
@@ -100,10 +104,14 @@ namespace CloudMouse::Hardware
         lv_group_set_default(encoder_group);
         lv_indev_set_group(indev, encoder_group);
 
-        // Create LVGL UI 
+        // Create LVGL UI
         Serial.println("🎨 Creating UI LVGL...");
         createUi();
-        
+
+        #if SHOW_LVGL_PERFORMANCE_MONITOR
+        createPerformanceLabel();
+        #endif 
+
         initialized = true;
         Serial.printf("✅ DisplayManager with LVGL v9 succesfully initialized!\n");
     }
@@ -122,41 +130,75 @@ namespace CloudMouse::Hardware
         }
         lv_timer_handler();
         handleDimmer();
+
+        #if SHOW_LVGL_PERFORMANCE_MONITOR
+        updatePerformanceLabel();
+        #endif
     }
 
-    void DisplayManager::handleDimmer() {
-      const unsigned long IDLE_TIMEOUT_MS = 10000; // 10 secondi di inattività
+    void DisplayManager::printPerformanceStats()
+    {
+        // Get memory info
+        lv_mem_monitor_t mon;
+        lv_mem_monitor(&mon);
 
-      // Verify IDLE mode
-      if (millis() - lastInteractionTime > IDLE_TIMEOUT_MS) {
-          
-        // check for next step delay
-        if (millis() - lastFadeTime > FADE_OUT_STEP_DELAY_MS) {
-                      
-          // check if target is reached out
-          if (currentBrightness > BRIGHTNESS_IDLE_TARGET) {
-              
-            // calculate new brightness using fade out step
-            currentBrightness = currentBrightness - FADE_OUT_STEP_VALUE;
-            
-            if (currentBrightness < BRIGHTNESS_IDLE_TARGET) {
-                currentBrightness = BRIGHTNESS_IDLE_TARGET;
+        // Calculate CPU usage from idle percentage
+        uint32_t cpu_usage = 100 - lv_timer_get_idle();
+
+        // Calculate approximate FPS from last timer period
+        static uint32_t lastFrameTime = millis();
+        uint32_t now = millis();
+        uint32_t frameTime = now - lastFrameTime;
+        uint32_t fps = frameTime > 0 ? 1000 / frameTime : 0;
+        lastFrameTime = now;
+
+        Serial.println("\n📊 LVGL Performance Stats:");
+        Serial.printf("   FPS: ~%d (frame time: %dms)\n", fps, frameTime);
+        Serial.printf("   CPU: %d%%\n", cpu_usage);
+        Serial.printf("   Memory: %d%% used (%d/%d bytes)\n",
+                      mon.used_pct, mon.total_size - mon.free_size, mon.total_size);
+        Serial.printf("   Fragmentation: %d%%\n\n", mon.frag_pct);
+    }
+
+    void DisplayManager::handleDimmer()
+    {
+        const unsigned long IDLE_TIMEOUT_MS = 10000; // 10 secondi di inattività
+
+        // Verify IDLE mode
+        if (millis() - lastInteractionTime > IDLE_TIMEOUT_MS)
+        {
+
+            // check for next step delay
+            if (millis() - lastFadeTime > FADE_OUT_STEP_DELAY_MS)
+            {
+
+                // check if target is reached out
+                if (currentBrightness > BRIGHTNESS_IDLE_TARGET)
+                {
+
+                    // calculate new brightness using fade out step
+                    currentBrightness = currentBrightness - FADE_OUT_STEP_VALUE;
+
+                    if (currentBrightness < BRIGHTNESS_IDLE_TARGET)
+                    {
+                        currentBrightness = BRIGHTNESS_IDLE_TARGET;
+                    }
+
+                    // set new brightness
+                    display.setBrightness(currentBrightness);
+
+                    // and update fading timer
+                    lastFadeTime = millis();
+                }
             }
-            
-            // set new brightness
-            display.setBrightness(currentBrightness);
-            
-            // and update fading timer
-            lastFadeTime = millis();
-          }
         }
-      }
     }
 
-    void DisplayManager::wakeUp() {
-      lastInteractionTime = millis();
-      currentBrightness = BRIGHTNESS_UP_TARGET;
-      display.setBrightness(BRIGHTNESS_UP_TARGET);
+    void DisplayManager::wakeUp()
+    {
+        lastInteractionTime = millis();
+        currentBrightness = BRIGHTNESS_UP_TARGET;
+        display.setBrightness(BRIGHTNESS_UP_TARGET);
     }
 
     // ============================================================================
@@ -166,7 +208,8 @@ namespace CloudMouse::Hardware
     void DisplayManager::lvgl_flush_cb(lv_display_t *disp, const lv_area_t *area, uint8_t *px_map)
     {
         DisplayManager *self = (DisplayManager *)lv_display_get_user_data(disp);
-        if (!self) return;
+        if (!self)
+            return;
 
         uint32_t w = lv_area_get_width(area);
         uint32_t h = lv_area_get_height(area);
@@ -179,7 +222,8 @@ namespace CloudMouse::Hardware
     void DisplayManager::lvgl_encoder_read_cb(lv_indev_t *indev, lv_indev_data_t *data)
     {
         DisplayManager *self = (DisplayManager *)lv_indev_get_user_data(indev); // Corretto
-        if (!self) return;
+        if (!self)
+            return;
 
         data->enc_diff = self->encoder_diff;
         data->state = self->encoder_state;
@@ -198,8 +242,9 @@ namespace CloudMouse::Hardware
     void DisplayManager::processEvent(const Event &event)
     {
         // First priority: forward event to app callback if registered
-        // This allows ForexDisplayManager to intercept and handle events
-        if (appCallback) {
+        // This allows a custom DisplayManager to intercept and handle events
+        if (appCallback)
+        {
             appCallback(event);
         }
         
@@ -222,8 +267,9 @@ namespace CloudMouse::Hardware
 
         case EventType::ENCODER_ROTATION:
             wakeUp();
-            encoder_diff += event.value; 
-            if (currentScreen == Screen::HELLO_WORLD) {
+            encoder_diff += event.value;
+            if (currentScreen == Screen::HELLO_WORLD)
+            {
                 lv_label_set_text_fmt(label_hello_status, "Encoder rotation: %s", event.value > 0 ? "RIGHT" : "LEFT");
             }
             break;
@@ -231,15 +277,17 @@ namespace CloudMouse::Hardware
         case EventType::ENCODER_CLICK:
             wakeUp();
             encoder_state = LV_INDEV_STATE_PRESSED;
-            if (currentScreen == Screen::HELLO_WORLD) {
+            if (currentScreen == Screen::HELLO_WORLD)
+            {
                 lv_label_set_text(label_hello_status, "Click!");
             }
             break;
 
         case EventType::ENCODER_LONG_PRESS:
             wakeUp();
-            encoder_state = LV_INDEV_STATE_PRESSED; 
-            if (currentScreen == Screen::HELLO_WORLD) {
+            encoder_state = LV_INDEV_STATE_PRESSED;
+            if (currentScreen == Screen::HELLO_WORLD)
+            {
                 lv_label_set_text(label_hello_status, "Long Press!");
             }
             break;
@@ -247,11 +295,11 @@ namespace CloudMouse::Hardware
         case EventType::DISPLAY_WIFI_AP_MODE:
             wakeUp();
             currentScreen = Screen::WIFI_AP_MODE;
-            { 
+            {
                 String apSSID = GET_AP_SSID();
                 String apPassword = GET_AP_PASSWORD();
                 String qrData = String("WIFI:T:WPA;S:") + apSSID + ";P:" + apPassword + ";;";
-                
+
                 lv_label_set_text(label_ap_mode_ssid, apSSID.c_str());
                 lv_label_set_text(label_ap_mode_pass, apPassword.c_str());
                 lv_qrcode_set_data(qr_ap_mode, qrData.c_str());
@@ -262,14 +310,14 @@ namespace CloudMouse::Hardware
         case EventType::DISPLAY_WIFI_SETUP_URL:
             wakeUp();
             currentScreen = Screen::WIFI_AP_CONNECTED;
-            
+
             lv_qrcode_set_data(qr_ap_connected, WIFI_CONFIG_SERVICE);
             lv_label_set_text(label_ap_connected_url, WIFI_CONFIG_SERVICE);
             lv_disp_load_scr(screen_ap_connected);
             break;
 
         case EventType::DISPLAY_CLEAR:
-            lv_obj_clean(lv_screen_active()); 
+            lv_obj_clean(lv_screen_active());
             break;
 
         default:
@@ -281,25 +329,27 @@ namespace CloudMouse::Hardware
     // LVGL: UI Creation Methods (v9)
     // ============================================================================
 
-    lv_obj_t* DisplayManager::createHeader(lv_obj_t* parent, const char* title) {
-        lv_obj_t* header = lv_obj_create(parent);
+    lv_obj_t *DisplayManager::createHeader(lv_obj_t *parent, const char *title)
+    {
+        lv_obj_t *header = lv_obj_create(parent);
         lv_obj_set_size(header, 480, 40);
         lv_obj_align(header, LV_ALIGN_TOP_MID, 0, 0);
         lv_obj_set_style_bg_color(header, lv_color_hex(0x222222), 0);
         lv_obj_set_style_border_width(header, 0, 0);
         lv_obj_set_style_radius(header, 0, 0);
+        lv_obj_clear_flag(header, LV_OBJ_FLAG_SCROLLABLE);
 
-        lv_obj_t* label = lv_label_create(header);
+        lv_obj_t *label = lv_label_create(header);
         lv_label_set_text(label, title);
         lv_obj_set_style_text_color(label, lv_color_hex(COLOR_TEXT), 0);
         lv_obj_center(label);
-        
+
         return header;
     }
 
     void DisplayManager::createUi()
     {
-        lv_obj_set_style_bg_color(lv_screen_active(), lv_color_hex(COLOR_BG), 0); 
+        lv_obj_set_style_bg_color(lv_screen_active(), lv_color_hex(COLOR_BG), 0);
 
         createHelloWorldScreen();
         createWifiConnectingScreen();
@@ -311,9 +361,9 @@ namespace CloudMouse::Hardware
     {
         screen_hello_world = lv_obj_create(NULL);
         lv_obj_set_style_bg_color(screen_hello_world, lv_color_hex(COLOR_BG), 0);
-        createHeader(screen_hello_world, "CloudMouse Boilerplate");
+        createHeader(screen_hello_world, "CloudMouse SDK");
 
-        lv_obj_t* title = lv_label_create(screen_hello_world);
+        lv_obj_t *title = lv_label_create(screen_hello_world);
         lv_label_set_text(title, "Hello CloudMouse!");
         lv_obj_set_style_text_color(title, lv_color_hex(COLOR_ACCENT), 0);
         lv_obj_set_style_text_font(title, &lv_font_montserrat_28, 0);
@@ -324,8 +374,8 @@ namespace CloudMouse::Hardware
         lv_obj_set_style_text_color(label_hello_status, lv_color_hex(COLOR_TEXT), 0);
         lv_obj_set_style_text_font(label_hello_status, &lv_font_montserrat_20, 0);
         lv_obj_align(label_hello_status, LV_ALIGN_CENTER, 0, 20);
-        
-        lv_obj_t* instructions = lv_label_create(screen_hello_world);
+
+        lv_obj_t *instructions = lv_label_create(screen_hello_world);
         lv_label_set_text(instructions, "Rotate the knob or push the button");
         lv_obj_set_style_text_color(instructions, lv_color_hex(0x888888), 0);
         lv_obj_align(instructions, LV_ALIGN_BOTTOM_MID, 0, -20);
@@ -337,7 +387,7 @@ namespace CloudMouse::Hardware
         lv_obj_set_style_bg_color(screen_wifi_connecting, lv_color_hex(COLOR_BG), 0);
         createHeader(screen_wifi_connecting, "CloudMouse Boilerplate");
 
-        lv_obj_t* title = lv_label_create(screen_wifi_connecting);
+        lv_obj_t *title = lv_label_create(screen_wifi_connecting);
         lv_label_set_text(title, "Connecting to WiFi");
         lv_obj_set_style_text_color(title, lv_color_hex(COLOR_ACCENT), 0);
         lv_obj_set_style_text_font(title, &lv_font_montserrat_28, 0);
@@ -361,7 +411,7 @@ namespace CloudMouse::Hardware
         lv_obj_set_style_bg_color(screen_ap_mode, lv_color_hex(TFT_DARKGRAY), 0);
         createHeader(screen_ap_mode, "WiFi Setup Required");
 
-        lv_obj_t* title = lv_label_create(screen_ap_mode);
+        lv_obj_t *title = lv_label_create(screen_ap_mode);
         lv_label_set_text(title, "Connect to CloudMouse");
         lv_obj_set_style_text_color(title, lv_color_hex(COLOR_ACCENT), 0);
         lv_obj_align(title, LV_ALIGN_TOP_MID, 0, 60);
@@ -377,11 +427,11 @@ namespace CloudMouse::Hardware
         lv_obj_align(label_ap_mode_pass, LV_ALIGN_TOP_MID, 0, 110);
 
         qr_ap_mode = lv_qrcode_create(screen_ap_mode);
-        lv_obj_set_size(qr_ap_mode, 180, 180); 
+        lv_obj_set_size(qr_ap_mode, 180, 180);
         lv_qrcode_set_dark_color(qr_ap_mode, lv_color_hex(0x000000));
         lv_qrcode_set_light_color(qr_ap_mode, lv_color_hex(0xFFFFFF));
-        
-        lv_qrcode_set_data(qr_ap_mode, "WIFI:T:WPA;S:...;P:...;;"); 
+
+        lv_qrcode_set_data(qr_ap_mode, "WIFI:T:WPA;S:...;P:...;;");
         lv_obj_align(qr_ap_mode, LV_ALIGN_CENTER, 0, 40);
     }
 
@@ -391,27 +441,68 @@ namespace CloudMouse::Hardware
         lv_obj_set_style_bg_color(screen_ap_connected, lv_color_hex(TFT_DARKGREEN), 0);
         createHeader(screen_ap_connected, "WiFi Configuration");
 
-        lv_obj_t* title = lv_label_create(screen_ap_connected);
+        lv_obj_t *title = lv_label_create(screen_ap_connected);
         lv_label_set_text(title, "✅ Connected!");
         lv_obj_set_style_text_color(title, lv_color_hex(COLOR_SUCCESS), 0);
         lv_obj_align(title, LV_ALIGN_TOP_MID, 0, 60);
-        
-        lv_obj_t* subtitle = lv_label_create(screen_ap_connected);
+
+        lv_obj_t *subtitle = lv_label_create(screen_ap_connected);
         lv_label_set_text(subtitle, "Scan QR to setup WiFi");
         lv_obj_set_style_text_color(subtitle, lv_color_hex(COLOR_TEXT), 0);
         lv_obj_align(subtitle, LV_ALIGN_TOP_MID, 0, 90);
 
         qr_ap_connected = lv_qrcode_create(screen_ap_connected);
-        lv_obj_set_size(qr_ap_connected, 180, 180); 
+        lv_obj_set_size(qr_ap_connected, 180, 180);
         lv_qrcode_set_dark_color(qr_ap_connected, lv_color_hex(0x000000));
         lv_qrcode_set_light_color(qr_ap_connected, lv_color_hex(0xFFFFFF));
-        
-        lv_qrcode_set_data(qr_ap_connected, "http://..."); 
+
+        lv_qrcode_set_data(qr_ap_connected, "http://...");
         lv_obj_align(qr_ap_connected, LV_ALIGN_CENTER, 0, 30);
-        
+
         label_ap_connected_url = lv_label_create(screen_ap_connected);
-        lv_label_set_text(label_ap_connected_url, "http://..."); 
+        lv_label_set_text(label_ap_connected_url, "http://...");
         lv_obj_set_style_text_color(label_ap_connected_url, lv_color_hex(COLOR_TEXT), 0);
         lv_obj_align(label_ap_connected_url, LV_ALIGN_BOTTOM_MID, 0, -20);
+    }
+
+    void DisplayManager::createPerformanceLabel()
+    {
+        // Create on the top layer instead of screen_active
+        lv_obj_t* label = lv_label_create(lv_layer_top());
+        lv_obj_set_style_text_color(label, lv_color_hex(0x00FF00), 0);
+        lv_obj_set_style_text_font(label, &lv_font_montserrat_12, 0);
+        lv_obj_align(label, LV_ALIGN_TOP_RIGHT, -5, 5);
+        lv_label_set_text(label, "FPS: -- CPU: --%");
+        
+        // Make it stay on top
+        lv_obj_move_foreground(label);
+        
+        perfLabel = label;
+    }
+
+    void DisplayManager::updatePerformanceLabel()
+    {
+        if (!perfLabel)
+            return;
+
+        // Calculate CPU usage
+        uint32_t cpu_usage = 100 - lv_timer_get_idle();
+
+        // Calculate FPS
+        static uint32_t lastFrameTime = millis();
+        static uint32_t frameCount = 0;
+        static uint32_t fps = 0;
+
+        frameCount++;
+        uint32_t now = millis();
+        if (now - lastFrameTime >= 1000)
+        {
+            fps = frameCount;
+            frameCount = 0;
+            lastFrameTime = now;
+        }
+
+        // Update label
+        lv_label_set_text_fmt(perfLabel, "FPS: %d CPU: %d%%", fps, cpu_usage);
     }
 } // namespace CloudMouse::Hardware
