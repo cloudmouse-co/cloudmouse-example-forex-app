@@ -88,16 +88,6 @@ namespace ForexExample
 
     void ForexDisplayManager::onDisplayEvent(const CloudMouse::Event &event)
     {
-        // Serial.println("------------------------------------------------------");
-        // Serial.println("|  RECEIVING FROM DisplayManager ----- UI callback    |");
-        // Serial.println("------------------------------------------------------");
-        // Serial.println("");
-        // Serial.println("------------------------------------------------------");
-        // Serial.println("");
-        // Serial.printf("%d", event.type);
-        // Serial.println("");
-        // Serial.println("------------------------------------------------------");
-
         if (isForexEvent(event))
         {
             processForexEvent(toForexEvent(event));
