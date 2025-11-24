@@ -14,6 +14,9 @@
 namespace ForexExample
 {
 
+    // Initialize static instance pointer
+    ForexApp *ForexApp::instance = nullptr;
+
     // ============================================================================
     // CONSTRUCTOR & DESTRUCTOR
     // ============================================================================
@@ -50,6 +53,15 @@ namespace ForexExample
 
         APP_LOGGER("📊 Initializing ForexApp...");
 
+        // CloudMouse::Core::instance().setAppOrchestrator(this);
+
+        // // Set singleton instance for static callback access
+        // instance = this;
+
+        // // Register callback with the SDK Core
+        // // This allows this App orchestrator to receive events from SDK Core
+        // CloudMouse::Core::instance().registerAppCallback(&ForexApp::handleSDKCallback);
+
         // Step 1: Initialize preferences service
         preferences = new ForexPreferences();
         if (!preferences->init())
@@ -84,12 +96,12 @@ namespace ForexExample
 
     void ForexApp::update()
     {
-        // Step 1: Process SDK events (WiFi, etc)
-        CloudMouse::Event sdkEvent;
-        while (CloudMouse::EventBus::instance().receiveFromCore(sdkEvent, 0))
-        {
-            processSDKEvent(sdkEvent);
-        }
+        // // Step 1: Process SDK events (WiFi, etc)
+        // CloudMouse::Event sdkEvent;
+        // while (CloudMouse::EventBus::instance().receiveFromCore(sdkEvent, 0))
+        // {
+        //     processSDKEvent(sdkEvent);
+        // }
 
         // Step 2: Update config server (handle web requests)
         if (configServer)

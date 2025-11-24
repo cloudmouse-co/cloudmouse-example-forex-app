@@ -171,37 +171,37 @@ public:
     bool receiveFromUI(Event& event, TickType_t timeout = 0);
     
 
-    // ========================================================================
-    // CORE-TO-APP COMMUNICATION (NEW!)
-    // ========================================================================
+    // // ========================================================================
+    // // CORE-TO-APP COMMUNICATION (NEW!)
+    // // ========================================================================
     
-    /**
-     * Send event from Core to registered App
-     * Usage: Core notifies app about WiFi, system state changes
-     */
-    bool sendToApp(const Event& event, TickType_t timeout = 0);
+    // /**
+    //  * Send event from Core to registered App
+    //  * Usage: Core notifies app about WiFi, system state changes
+    //  */
+    // bool sendToApp(const Event& event, TickType_t timeout = 0);
     
-    /**
-     * Receive event from Core in App
-     * Usage: App consumes Core events (WiFi connected, etc)
-     */
-    bool receiveFromCore(Event& event, TickType_t timeout = 0);
+    // /**
+    //  * Receive event from Core in App
+    //  * Usage: App consumes Core events (WiFi connected, etc)
+    //  */
+    // bool receiveFromCore(Event& event, TickType_t timeout = 0);
     
-    // ========================================================================
-    // APP-TO-CORE COMMUNICATION (NEW!)
-    // ========================================================================
+    // // ========================================================================
+    // // APP-TO-CORE COMMUNICATION (NEW!)
+    // // ========================================================================
     
-    /**
-     * Send event from App to Core
-     * Usage: App requests Core services (rarely needed)
-     */
-    bool sendToCore(const Event& event, TickType_t timeout = 0);
+    // /**
+    //  * Send event from App to Core
+    //  * Usage: App requests Core services (rarely needed)
+    //  */
+    // bool sendToCore(const Event& event, TickType_t timeout = 0);
     
-    /**
-     * Receive event from App in Core
-     * Usage: Core processes app requests (rarely used)
-     */
-    bool receiveFromApp(Event& event, TickType_t timeout = 0);
+    // /**
+    //  * Receive event from App in Core
+    //  * Usage: Core processes app requests (rarely used)
+    //  */
+    // bool receiveFromApp(Event& event, TickType_t timeout = 0);
 
     // ========================================================================
     // QUEUE MONITORING AND DIAGNOSTICS
@@ -283,8 +283,8 @@ private:
     QueueHandle_t uiToMainQueue = nullptr;    // UI task → Core task communication
     QueueHandle_t mainToUIQueue = nullptr;    // Core task → UI task communication
     
-    QueueHandle_t coreToAppQueue = nullptr;
-    QueueHandle_t appToCoreQueue = nullptr;
+    // QueueHandle_t coreToAppQueue = nullptr;
+    // QueueHandle_t appToCoreQueue = nullptr;
 
     // Configuration constants
     static const uint32_t QUEUE_SIZE = 10;   // Maximum events per queue

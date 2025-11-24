@@ -265,7 +265,7 @@ namespace ForexExample
      * }
      * ```
      */
-    class ForexApp
+    class ForexApp : public CloudMouse::IAppOrchestrator
     {
     public:
         ForexApp();
@@ -283,7 +283,7 @@ namespace ForexExample
          *
          * @return true if initialization successful
          */
-        bool init();
+        bool init() override;
 
         /**
          * Main update loop - call from Arduino loop()
@@ -296,7 +296,7 @@ namespace ForexExample
          *
          * Should be called regularly (20-50ms interval)
          */
-        void update();
+        void update() override;
 
         /**
          * Process SDK events
@@ -306,7 +306,7 @@ namespace ForexExample
          *
          * @param event SDK event to process
          */
-        void processSDKEvent(const CloudMouse::Event &event);
+        void processSDKEvent(const CloudMouse::Event &event) override;
 
         /**
          * Get current application state
@@ -323,7 +323,18 @@ namespace ForexExample
          */
         bool isMarketOpen() const;
 
+        // Static callback wrapper for SDK DisplayManager
+        // This gets called from Core 1 when DisplayManager processes events
+        static void handleSDKCallback(const CloudMouse::Event& event) {
+            if (instance) {
+                instance->processSDKEvent(event); 
+            }
+        }
+
     private:
+        // Singleton instance for static callback access
+        static ForexApp* instance;
+
         // Service instances (dependency injection)
         ForexDataService *dataService;
         ForexPreferences *preferences;

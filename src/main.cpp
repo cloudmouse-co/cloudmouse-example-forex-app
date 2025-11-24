@@ -54,8 +54,9 @@
 //     Core::instance().setWiFi(&wifi);
 //     Core::instance().setWebServer(&webServer);
 //     Core::instance().setLEDManager(&ledManager);
-//     // Register Forex App into core
-//     Core::instance().setForexApp(&forexApp);
+
+//     // Register ForexApp as App orchestrator into core
+//     Core::instance().setAppOrchestrator(&forexApp);
 
 //     // Start dual-core operation
 //     Core::instance().startUITask();     // UI rendering on Core 1

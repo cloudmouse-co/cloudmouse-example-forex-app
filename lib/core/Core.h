@@ -25,7 +25,8 @@
 #include "../hardware/SimpleBuzzer.h"
 #include "../network/WebServerManager.h"
 
-namespace ForexExample {
+namespace ForexExample
+{
   class ForexApp;
 }
 
@@ -34,6 +35,32 @@ namespace CloudMouse
 
   using namespace Hardware;
   using namespace Network;
+
+  /**
+   * Interface for custom App orchestrators
+   * Any app that wants to receive SDK events must implement this
+   */
+  class IAppOrchestrator
+  {
+  public:
+    virtual ~IAppOrchestrator() = default;
+
+    /**
+     * App orchestrator initialization
+     */
+    virtual bool init() = 0;
+
+    /**
+     * App Orchestrator update loop
+     */
+    virtual void update() = 0;
+
+    /**
+     * Process SDK events
+     * Used by Core when we need to forward events to App Orchestrator
+     */
+    virtual void processSDKEvent(const CloudMouse::Event &event) = 0;
+  };
 
   /**
    * System state machine for CloudMouse lifecycle management
@@ -89,70 +116,77 @@ namespace CloudMouse
     void setWebServer(WebServerManager *webServer) { this->webServer = webServer; }
     void setLEDManager(LEDManager *ledManager) { this->ledManager = ledManager; }
 
-    // Forex app
-    void setForexApp(ForexExample::ForexApp *forexApp) { this->forexApp = forexApp; }
-    
-    // Hardware components getters
-    EncoderManager* getEncoder() const { return encoder; }
-    DisplayManager* getDisplay() const { return display; }
-    WiFiManager* getWiFi() const { return wifi; }
-    WebServerManager* getWebServer() const { return webServer; }
-    LEDManager* getLEDManager() const { return ledManager; }
+  // Hardware components getters
+  EncoderManager *getEncoder() const { return encoder; }
+  DisplayManager *getDisplay() const { return display; }
+  WiFiManager *getWiFi() const { return wifi; }
+  WebServerManager *getWebServer() const { return webServer; }
+  LEDManager *getLEDManager() const { return ledManager; }
 
-    // State management
-    SystemState getState() const { return currentState; }
-    void setState(SystemState state);
+  // State management
+  SystemState getState() const { return currentState; }
+  void setState(SystemState state);
 
-  private:
-    // Singleton pattern enforcement
-    Core() = default;
-    ~Core() = default;
-    Core(const Core &) = delete;
-    Core &operator=(const Core &) = delete;
+  /**
+   * Register custom App orchestrator
+   * @param orchestrator Pointer to app that implements IAppOrchestrator
+   */
+  void setAppOrchestrator(IAppOrchestrator *orchestrator)
+  {
+    appOrchestrator = orchestrator;
+  }
 
-    // System state tracking
-    SystemState currentState = SystemState::BOOTING;
-    uint32_t stateStartTime = 0;
+private:
+  // Singleton pattern enforcement
+  Core() = default;
+  ~Core() = default;
+  Core(const Core &) = delete;
+  Core &operator=(const Core &) = delete;
 
-    // Configuration
-    bool wifiRequired = true;
+  // System state tracking
+  SystemState currentState = SystemState::BOOTING;
+  uint32_t stateStartTime = 0;
 
-    // Hardware component references
-    EncoderManager *encoder = nullptr;
-    DisplayManager *display = nullptr;
-    WiFiManager *wifi = nullptr;
-    WebServerManager *webServer = nullptr;
-    LEDManager *ledManager = nullptr;
-    
-    // Forex app
-    ForexExample::ForexApp *forexApp = nullptr;
+  // Configuration
+  bool wifiRequired = true;
 
-    // System services
-    PreferencesManager prefs;
-    TaskHandle_t uiTaskHandle = nullptr;
+  // Hardware component references
+  EncoderManager *encoder = nullptr;
+  DisplayManager *display = nullptr;
+  WiFiManager *wifi = nullptr;
+  WebServerManager *webServer = nullptr;
+  LEDManager *ledManager = nullptr;
 
-    // Performance monitoring
-    uint32_t coordinationCycles = 0;
-    uint32_t eventsProcessed = 0;
-    uint32_t lastHealthCheck = 0;
+  // Forex app
+  // ForexExample::ForexApp *forexApp = nullptr;
+  IAppOrchestrator *appOrchestrator = nullptr;
 
-    // FreeRTOS task functions
-    static void uiTaskFunction(void *param);
-    void runUITask();
+  // System services
+  PreferencesManager prefs;
+  TaskHandle_t uiTaskHandle = nullptr;
 
-    // State machine handlers
-    void handleBootingState();
-    void handleWiFiConnection();
+  // Performance monitoring
+  uint32_t coordinationCycles = 0;
+  uint32_t eventsProcessed = 0;
+  uint32_t lastHealthCheck = 0;
 
-    // Event processing system
-    void processEvents();
-    void processSerialCommands();
-    void handleEncoderRotation(const Event &event);
-    void handleEncoderClick(const Event &event);
-    void handleEncoderLongPress(const Event &event);
+  // FreeRTOS task functions
+  static void uiTaskFunction(void *param);
+  void runUITask();
 
-    // System health monitoring
-    void checkHealth();
-  };
+  // State machine handlers
+  void handleBootingState();
+  void handleWiFiConnection();
+
+  // Event processing system
+  void processEvents();
+  void processSerialCommands();
+  void handleEncoderRotation(const Event &event);
+  void handleEncoderClick(const Event &event);
+  void handleEncoderLongPress(const Event &event);
+
+  // System health monitoring
+  void checkHealth();
+};
 
 } // namespace CloudMouse

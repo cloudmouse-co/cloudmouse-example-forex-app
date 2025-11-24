@@ -74,20 +74,20 @@ namespace CloudMouse
             return;
         }
 
-        coreToAppQueue = xQueueCreate(QUEUE_SIZE, sizeof(Event));
-        if (!coreToAppQueue)
-        {
-            Serial.println("❌ Failed to create Core→App queue");
-            return;
-        }
+        // coreToAppQueue = xQueueCreate(QUEUE_SIZE, sizeof(Event));
+        // if (!coreToAppQueue)
+        // {
+        //     Serial.println("❌ Failed to create Core→App queue");
+        //     return;
+        // }
 
-        appToCoreQueue = xQueueCreate(QUEUE_SIZE, sizeof(Event));
-        if (!appToCoreQueue)
-        {
-            Serial.println("❌ Failed to create App→Core queue");
-            vQueueDelete(coreToAppQueue);
-            return;
-        }
+        // appToCoreQueue = xQueueCreate(QUEUE_SIZE, sizeof(Event));
+        // if (!appToCoreQueue)
+        // {
+        //     Serial.println("❌ Failed to create App→Core queue");
+        //     vQueueDelete(coreToAppQueue);
+        //     return;
+        // }
 
         // Mark as successfully initialized
         initialized = true;
@@ -246,51 +246,51 @@ namespace CloudMouse
         }
     }
 
-    bool EventBus::sendToApp(const Event &event, TickType_t timeout)
-    {
-        if (!initialized || !coreToAppQueue)
-            return false;
+    // bool EventBus::sendToApp(const Event &event, TickType_t timeout)
+    // {
+    //     if (!initialized || !coreToAppQueue)
+    //         return false;
 
-        BaseType_t result = xQueueSend(coreToAppQueue, &event, timeout);
-        if (result == pdPASS)
-        {
-            Serial.printf("📤 Event sent to App: type=%d\n", (int)event.type);
-            return true;
-        }
-        return false;
-    }
+    //     BaseType_t result = xQueueSend(coreToAppQueue, &event, timeout);
+    //     if (result == pdPASS)
+    //     {
+    //         Serial.printf("📤 Event sent to App: type=%d\n", (int)event.type);
+    //         return true;
+    //     }
+    //     return false;
+    // }
 
-    bool EventBus::receiveFromCore(Event &event, TickType_t timeout)
-    {
-        if (!initialized || !coreToAppQueue)
-            return false;
+    // bool EventBus::receiveFromCore(Event &event, TickType_t timeout)
+    // {
+    //     if (!initialized || !coreToAppQueue)
+    //         return false;
 
-        BaseType_t result = xQueueReceive(coreToAppQueue, &event, timeout);
-        if (result == pdPASS)
-        {
-            Serial.printf("📥 App received from Core: type=%d\n", (int)event.type);
-            return true;
-        }
-        return false;
-    }
+    //     BaseType_t result = xQueueReceive(coreToAppQueue, &event, timeout);
+    //     if (result == pdPASS)
+    //     {
+    //         Serial.printf("📥 App received from Core: type=%d\n", (int)event.type);
+    //         return true;
+    //     }
+    //     return false;
+    // }
 
-    bool EventBus::sendToCore(const Event &event, TickType_t timeout)
-    {
-        if (!initialized || !appToCoreQueue)
-            return false;
+    // bool EventBus::sendToCore(const Event &event, TickType_t timeout)
+    // {
+    //     if (!initialized || !appToCoreQueue)
+    //         return false;
 
-        BaseType_t result = xQueueSend(appToCoreQueue, &event, timeout);
-        return (result == pdPASS);
-    }
+    //     BaseType_t result = xQueueSend(appToCoreQueue, &event, timeout);
+    //     return (result == pdPASS);
+    // }
 
-    bool EventBus::receiveFromApp(Event &event, TickType_t timeout)
-    {
-        if (!initialized || !appToCoreQueue)
-            return false;
+    // bool EventBus::receiveFromApp(Event &event, TickType_t timeout)
+    // {
+    //     if (!initialized || !appToCoreQueue)
+    //         return false;
 
-        BaseType_t result = xQueueReceive(appToCoreQueue, &event, timeout);
-        return (result == pdPASS);
-    }
+    //     BaseType_t result = xQueueReceive(appToCoreQueue, &event, timeout);
+    //     return (result == pdPASS);
+    // }
 
     // ============================================================================
     // QUEUE MONITORING AND DIAGNOSTICS IMPLEMENTATION

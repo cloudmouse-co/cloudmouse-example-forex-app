@@ -30,7 +30,10 @@ namespace CloudMouse
     Serial.println("🎬 Boot sequence started - LED animation active");
     Serial.println("✅ Core initialized successfully");
 
-    forexApp->init();
+    if (appOrchestrator)
+    {
+      appOrchestrator->init();
+    }
   }
 
   void Core::startUITask()
@@ -130,9 +133,9 @@ namespace CloudMouse
     processSerialCommands();
     processEvents();
 
-    if (forexApp)
+    if (appOrchestrator)
     {
-      forexApp->update();
+      appOrchestrator->update();
     }
 
     coordinationCycles++;
@@ -216,8 +219,10 @@ namespace CloudMouse
         Event helloEvent(EventType::DISPLAY_WAKE_UP);
         EventBus::instance().sendToUI(helloEvent);
 
-        Event wifiConnected(EventType::WIFI_CONNECTED);
-        EventBus::instance().sendToApp(wifiConnected);
+        if (appOrchestrator) {
+          Event wifiConnected(EventType::WIFI_CONNECTED);
+          appOrchestrator->processSDKEvent(wifiConnected);
+        }
 
         setState(SystemState::READY);
       }
@@ -339,8 +344,9 @@ namespace CloudMouse
 
     // Forward to UI system
     EventBus::instance().sendToUI(event);
-    EventBus::instance().sendToApp(event);
-
+    if (appOrchestrator) {
+      appOrchestrator->processSDKEvent(event);
+    }
   }
 
   void Core::handleEncoderClick(const Event &event)
@@ -358,7 +364,10 @@ namespace CloudMouse
 
     // Forward to UI system
     EventBus::instance().sendToUI(event);
-    EventBus::instance().sendToApp(event);
+
+    if (appOrchestrator) {
+      appOrchestrator->processSDKEvent(event);
+    }
   }
 
   void Core::handleEncoderLongPress(const Event &event)
@@ -376,7 +385,9 @@ namespace CloudMouse
     
     // Forward to UI system
     EventBus::instance().sendToUI(event);
-    EventBus::instance().sendToApp(event);
+    if (appOrchestrator) {
+      appOrchestrator->processSDKEvent(event);
+    }
   }
 
   // ============================================================================
