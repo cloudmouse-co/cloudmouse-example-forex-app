@@ -219,29 +219,29 @@ void ForexDisplayManager::processForexEvent(const ForexEventData &event)
 #### Communication Flow with Custom Events
 ```
 ┌───────────────────────────────────────────────────────────────┐
-│ Core 0 (ForexDataService)                                    │
+│ Core 0 (ForexDataService)                                     │
 │                                                               │
 │  ForexEventData event;                                        │
-│  event.type = FOREX_UPDATE_SYMBOL;  // Your event (value 2)  │
+│  event.type = FOREX_UPDATE_SYMBOL;  // Your event (value 2)   │
 │         ↓                                                     │
-│  toSDKEvent(event)  ← Converts to SDK format (+100 offset)   │
+│  toSDKEvent(event)  ← Converts to SDK format (+100 offset)    │
 │         ↓                                                     │
-│  EventBus::sendToUI()  ← Goes into queue as type 102         │
+│  EventBus::sendToUI()  ← Goes into queue as type 102          │
 └─────────────────────────┬─────────────────────────────────────┘
                           │
                 [FreeRTOS Queue]
                           │
                           ↓
 ┌─────────────────────────┴─────────────────────────────────────┐
-│ Core 1 (ForexDisplayManager)                                 │
+│ Core 1 (ForexDisplayManager)                                  │
 │                                                               │
-│  handleDisplayCallback()  ← SDK calls this with type 102     │
+│  handleDisplayCallback()  ← SDK calls this with type 102      │
 │         ↓                                                     │
-│  isForexEvent(event)  ← Checks: 102 >= 100? YES!            │
+│  isForexEvent(event)  ← Checks: 102 >= 100? YES!              │
 │         ↓                                                     │
-│  toForexEvent(event)  ← Converts back (-100 offset)          │
+│  toForexEvent(event)  ← Converts back (-100 offset)           │
 │         ↓                                                     │
-│  processForexEvent()  ← Handles FOREX_UPDATE_SYMBOL (2)      │
+│  processForexEvent()  ← Handles FOREX_UPDATE_SYMBOL (2)       │
 └───────────────────────────────────────────────────────────────┘
 ```
 
