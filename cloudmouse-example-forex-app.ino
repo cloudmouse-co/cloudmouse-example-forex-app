@@ -19,6 +19,7 @@
 #include "lib/network/WebServerManager.h"
 #include "lib/hardware/LEDManager.h"
 #include "lib/forex/ForexApp.h"
+#include "lib/utils/Logger.h"
 
 using namespace CloudMouse;
 using namespace ForexExample;
@@ -38,8 +39,9 @@ void setup() {
     delay(1000);
 
     // Welcome message
-    Serial.println();
-    Serial.println("CloudMouse Forex App v1.0");
+    SDK_LOGGER("");
+    SDK_LOGGER("CloudMouse Forex App v1.0");
+    SDK_LOGGER("");
     
     // Initialize hardware components
     SimpleBuzzer::init();
@@ -61,7 +63,7 @@ void setup() {
     Core::instance().startUITask();     // UI rendering on Core 1
     Core::instance().initialize();      // Event system on Core 0
     
-    Serial.println("✅ System ready!");
+    SDK_LOGGER("✅ System ready!");
 }
 
 void loop() {

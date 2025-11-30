@@ -34,6 +34,7 @@
 #include "../../lib/core/Core.h"
 #include "../../lib/core/Events.h"
 #include "../../lib/core/EventBus.h"
+#include "../utils/Logger.h"
 
 // Forward declarations
 namespace ForexExample
@@ -46,20 +47,6 @@ namespace ForexExample
 
 namespace ForexExample
 {
-
-    template <typename T>
-    void APP_LOGGER(T value)
-    {
-        Serial.print("[APP LOGGER] - ");
-        Serial.println(value);
-    }
-
-    inline void APP_LOGGER(const char *value)
-    {
-        Serial.print("[APP LOGGER] - ");
-        Serial.println(value);
-    }
-
     enum class ForexEventType
     {
         // Configuration events

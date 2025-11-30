@@ -251,6 +251,22 @@ namespace CloudMouse
  */
 #define SHOW_LVGL_PERFORMANCE_MONITOR true
 
+/**
+ * APP logging flag
+ * 
+ * if `true` APP_LOGGER() logging is enabled with [APP] namespace
+ * if `false` or not defined, APP_LOGGER() is disabled.
+ */
+#define APP_DEBUGGER_ACTIVE true
+
+/**
+ * SDK logging flag
+ * 
+ * if `true` SDK_LOGGER("") logging is enabled with [SDK] namespace
+ * if `false` or not defined, SDK_LOGGER("") is disabled.
+ */
+#define SDK_DEBUGGER_ACTIVE true
+
 // ============================================================================
 // CONFIGURATION VALIDATION
 // ============================================================================
